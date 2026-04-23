@@ -1,0 +1,275 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{Monotonic Quantile GAT-Informer with Conformal Calibration for Risk-Aware EV Charging Demand Forecasting}
+
+\author{\IEEEauthorblockN{1\textsuperscript{st} Ruosi Kong}
+\IEEEauthorblockA{\textit{dept. electrical engineering} \\
+\textit{Khalifa University}\\
+Abu Dhabi, United Arab Emirates \\100064422@ku.ac.ae}
+\and
+\IEEEauthorblockN{2\textsuperscript{nd} Prince Aduama}
+\IEEEauthorblockA{\textit{dept. electrical engineering} \\
+\textit{Khalifa University}\\
+Abu Dhabi, United Arab Emirates  \\
+100060989@ku.ac.ae}
+\and
+\IEEEauthorblockN{3\textsuperscript{rd} Ameena Saad Al-Sumaiti}
+\IEEEauthorblockA{\textit{dept. electrical engineering} \\
+\textit{Khalifa University}\\
+Abu Dhabi, United Arab Emirates  \\
+ameena.alsumaiti@ku.ac.ae}
+
+% \and
+% \IEEEauthorblockN{4\textsuperscript{th} Khalifa Al Hosani}
+% \IEEEauthorblockA{\textit{dept. name of organization (of Aff.)} \\
+% \textit{name of organization (of Aff.)}\\
+% City, Country \\
+% email address or ORCID}
+
+
+% \and
+% \IEEEauthorblockN{5\textsuperscript{th} Given Name Surname}
+% \IEEEauthorblockA{\textit{dept. name of organization (of Aff.)} \\
+% \textit{name of organization (of Aff.)}\\
+% City, Country \\
+% email address or ORCID}
+% \and
+% \IEEEauthorblockN{6\textsuperscript{th} Given Name Surname}
+% \IEEEauthorblockA{\textit{dept. name of organization (of Aff.)} \\
+% \textit{name of organization (of Aff.)}\\
+% City, Country \\
+% email address or ORCID}
+}
+
+\maketitle
+\begin{abstract}
+    Accurate forecasting of electric vehicle (EV) charging demand is essential for grid stability and resource planning, yet most existing models provide only deterministic point estimates without uncertainty quantification. We develop a probabilistic forecasting framework that augments a spatio‑temporal backbone with a monotonic quantile prediction head and conformalized quantile regression (CQR). The monotonic head uses incremental softplus parameterization to ensure non‑negative, non‑crossing quantile forecasts, trained via pinball loss, while CQR provides distribution‑free finite‑sample coverage through calibration on a held‑out set. Experiments on the UrbanEV benchmark show improved median accuracy over deterministic baselines, and conformal calibration raises empirical coverage from 62.2\% to 88.5\% under a 90\% nominal target with minimal interval widening. Sensitivity analysis across risk levels demonstrates the robustness and configurability of the proposed framework for risk‑aware charging infrastructure management.
+\end{abstract}
+\begin{IEEEkeywords}
+Electric vehicle charging; Graph neural networks; Probabilistic forecasting; Quantile regression; Risk-aware planning
+\end{IEEEkeywords}
+
+% This extended abstract should not exceed 2 pages. Figures and tables may be included where appropriate. The key relevant references should be provided. *CRITICAL: Do Not Use Symbols, Special Characters, Footnotes, or Math in Paper Title.
+
+\section{Introduction}
+The rapid growth of electric vehicles (EVs) has significantly increased the operational complexity of urban charging infrastructure. Accurate forecasting of EV charging demand is essential for resource allocation, congestion mitigation, and grid stability. However, most existing approaches focus exclusively on deterministic point prediction optimized using mean squared error (MSE), neglecting predictive uncertainty.
+
+To address these limitations, we extend a deterministic GAT-Informer backbone \cite{mine}, which combines graph attention networks (GAT) for spatial dependency modeling with the Informer architecture for efficient long-range temporal learning, into a fully probabilistic spatio-temporal forecasting model. Specifically, we introduce a monotonic quantile prediction head and apply conformalized quantile regression (CQR) to achieve finite-sample coverage guarantees. We evaluate the proposed framework on the UrbanEV benchmark dataset \cite{urbanev}. Experimental results demonstrate improved interval coverage and enhanced median prediction accuracy compared to the deterministic baseline. The main contributions of this work are (1) A monotonic quantile head with non-negativity and non-crossing guarantees; (2) Conformal calibration that provides distribution-free coverage guarantees without model retraining; (3) Empirical demonstration that probabilistic training improves median point prediction accuracy over the deterministic baseline.
+
+% \begin{itemize}
+%     \item A monotonic quantile head with non-negativity and non-crossing guarantees via incremental softplus parameterization.
+%     \item Conformal calibration that provides distribution-free coverage guarantees without model retraining.
+%     \item Empirical demonstration that probabilistic training improves median point prediction accuracy over the deterministic baseline.
+% \end{itemize}
+
+
+\section{Related Work}
+
+
+\section{Methodology}
+\subsection{Monotonic Quantile GAT-Informer}
+
+We retain the GAT-Informer backbone for spatio-temporal feature extraction and replace its single regression head with a monotonic quantile prediction head that simultaneously outputs $Q$ quantile levels $\tau_1 < \tau_2 < \cdots < \tau_Q$.
+
+To ensure physical plausibility and eliminate quantile crossing, we adopt an incremental softplus parameterization. The model outputs raw parameters $(b, \Delta_2, \ldots, \Delta_Q) \in \mathbb{R}^Q$. The lowest quantile is obtained via $\hat{q}(\tau_1) = \mathrm{Softplus}(b)$ ensuring non-negativity of all demand forecasts. Higher quantiles are constructed as monotone cumulative sums:
+
+\begin{equation}
+ \hat{q}(\tau_k) = \hat{q}(\tau_1) + \sum_{i=2}^{k} \mathrm{Softplus}(\Delta_i), \quad k = 2, \ldots, Q
+\end{equation}
+which guarantees strict monotonicity across all quantile levels without any post-hoc correction.
+
+The model is jointly trained by minimizing the sum of pinball losses across all quantile levels:
+
+\begin{equation}
+    L = \sum_{\tau} \sum_{t} \rho_{\tau}(y_t - \hat{q}_t(\tau))
+\end{equation}
+%
+where the pinball loss is defined as
+
+\begin{equation}
+    \rho_{\tau}(u) = u \left( \tau - \mathbf{1}_{\{u < 0\}} \right)
+\end{equation}
+
+
+
+
+\subsection{Conformal Calibration}
+
+While quantile regression learns conditional quantile estimates, empirical prediction interval coverage may systematically deviate from the nominal level $1 - \delta$. We apply conformalized quantile regression (CQR) to provide finite-sample marginal coverage guarantees. Using a held-out calibration set $\mathcal{D}_{\mathrm{cal}}$ of size $n$, we compute nonconformity scores for each sample $i$ as:
+\begin{equation}
+s_i = \max \left\{ \hat{q}(\tau_{\mathrm{lo}}) - y_i,\; y_i - \hat{q}(\tau_{\mathrm{hi}}) \right\}
+\end{equation}
+
+The corrected prediction interval for a new input is then:
+\begin{equation}
+\hat{C}(x) = 
+\left[
+\hat{q}(\tau_{\mathrm{lo}}) - \hat{Q}_{1-\delta}(S),\;
+\hat{q}(\tau_{\mathrm{hi}}) + \hat{Q}_{1-\delta}(S)
+\right]
+\end{equation}
+where $\hat{Q}_{1-\delta}(S)$ is the $\lceil (1-\delta)(1 + 1/n) \rceil$-th empirical quantile of the calibration scores.
+
+This procedure is applied in a horizon-wise manner and guarantees that $\mathbb{P}\left( y \in \hat{C}(x) \right) \ge 1 - \delta$ in finite samples, without requiring any distributional assumptions or model retraining.
+
+
+
+% \subsection{Risk-Aware Extension}
+
+% The calibrated quantile forecasts provide direct support for risk-aware planning strategies. Upper quantiles can be used for conservative allocation, while prediction intervals enable chance-constrained optimization. Although allocation integration is beyond the current implementation, the proposed framework establishes a probabilistic foundation for downstream risk-aware charging management.
+
+\section{Results}
+
+% dataset and setup
+
+% (5 exp) point forecasting; raw vs calibrated; baseline comparison; risk-aware evaluation; hourly diagnostic
+
+We evaluate the proposed model under single-step EV charging demand forecasting using real-world urban data. The evaluation focuses on three aspects: (1) point prediction accuracy, (2) interval reliability, and (3) the effectiveness of conformal calibration.
+
+
+\subsection{Datasetand Experiment Setup}
+
+We evaluate on the UrbanEV dataset, covering Shenzhen, China, with six months of hourly data across 1,362 charging stations. The quantile model is trained with 9 quantile levels: $ { 0.05, 0.1, ..., 0.9, 0.95 } $. For conformal calibration, we target a nominal coverage level of $1 - \delta = 0.90$, using the outermost interval $[\tau_{lo} = 0.05$, $ \tau_{hi} = 0.95]$. All experiments are conducted under a single-step forecasting setting.
+
+
+\subsection{Forecasting Performance and Reliability}
+
+This subsection evaluates whether the proposed probabilistic forecasting framework preserves point forecasting quality while improving the reliability of Prediction Intervals (PIs).
+
+As shown in Table \ref{tab: point_performance}, the quantile model achieves lower MSE, MAPE, RAE, MAE, and MedAE than the deterministic GAT-Informer baseline across all reported point metrics. Most notably, MAPE is reduced from 8.46\% to 5.44\%, and MAE decreases from 0.0939 to 0.0650, indicating improved robustness under demand fluctuations and near-zero demand conditions. We also compare against a lightweight historical quantiles baseline, which yields a point MAPE of 104.797054 and a point MAE of 1.443969 on the same canonical split. This comparison shows that probabilistic forecasting alone is not sufficient: a simple empirical quantile baseline provides uncertainty estimates but poor central forecasts. In contrast, the proposed probabilistic GAT-Informer preserves strong point accuracy while producing the full predictive distribution. These results suggest that learning the conditional distribution enhances rather than degrades central tendency estimation.
+
+
+% Please add the following required packages to your document preamble:
+% \usepackage{graphicx}
+\begin{table}[htbp]
+\caption{Point Prediction Performance}
+\vspace{-1.5em}
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|c|}
+\hline
+\textbf{Model} & \textbf{MSE} & \textbf{MAPE} & \textbf{RAE} & \textbf{MAE} & \textbf{MedAE} \\
+\hline
+GAT-Informer & 0.1037 & 8.46\% & 0.0313 & 0.0939 & 0.0228 \\
+\hline
+GAT-Informer-Quantile & 0.1022 & 5.44\% & 0.0216 & 0.0650 & 0.0054 \\
+\hline
+Historical Quantiles & --- & 104.797054 & --- & 1.443969 & --- \\
+\hline
+\end{tabular}
+\label{tab: point_performance}
+\end{center}
+\end{table}
+\vspace{-4mm}
+
+
+% \begin{table}[htbp]
+% \caption{Table Type Styles}
+% \begin{center}
+% \begin{tabular}{|c|c|c|c|}
+% \hline
+% \textbf{Table}&\multicolumn{3}{|c|}{\textbf{Table Column Head}} \\
+% \cline{2-4} 
+% \textbf{Head} & \textbf{\textit{Table column subhead}}& \textbf{\textit{Subhead}}& \textbf{\textit{Subhead}} \\
+% \hline
+% copy& More table copy$^{\mathrm{a}}$& &  \\
+% \hline
+% \multicolumn{4}{l}{$^{\mathrm{a}}$Sample of a Table footnote.}
+% \end{tabular}
+% \label{tab1}
+% \end{center}
+% \end{table}
+
+Table \ref{tab:uq-performance} reports PI performance under a target risk level of $\delta = 0.1$, corresponding to 90\% nominal coverage. Three metrics are reported: prediction interval coverage probability (PICP), mean prediction interval width (MPIW), and the Winkler Interval Score (WIS), which jointly penalizes excessive width and coverage violations. Without conformal calibration, the PICP is only 62.2\%, indicating substantial under-coverage. After applying conformalized quantile regression, coverage improves to 88.5\%, approaching the nominal target. Importantly, the MPIW remains nearly unchanged after calibration, from 0.2482 to 0.2483, showing that the gain in Marginal Calibration is not achieved through interval inflation. The WIS also remains nearly unchanged, which indicates that calibration improves reliability while preserving sharpness.
+
+
+\begin{table}[htbp]
+\caption{Uncertainty Quantification Performance}
+\begin{center}
+\begin{tabular}{|c|c|c|c|}
+\hline
+\textbf{Setting} & \textbf{PICP} & \textbf{MPIW} & \textbf{WIS} \\
+\hline
+Uncalibrated & 0.6221 & 0.2482 & 0.2944\\
+\hline
+Conformal Calibration & 0.8851 & 0.2483 & 0.2944\\
+\hline
+\end{tabular}
+\label{tab:uq-performance}
+\end{center}
+\end{table}
+\vspace{-4mm}
+
+Overall, the results show that the proposed framework improves point forecasting quality relative to existing baselines and substantially improves PI reliability through conformal calibration without sacrificing sharpness.
+
+\subsection{Sensitivity Analysis Across Risk Levels}
+
+Table \ref{tab:sensi} reports calibrated interval performance across multiple risk levels $\delta \in {0.1, 0.2, 0.4}$, corresponding to nominal coverage targets of 90\%, 80\%, and 60\%. This analysis demonstrates the flexibility of the proposed framework for downstream risk-aware planning: conservative strategies (low $\delta$) can employ upper quantile forecasts for over-provisioning, while more aggressive strategies (high $\delta$) can trade coverage for tighter intervals. Across all risk levels, empirical PICP tracks the nominal coverage closely, confirming the reliability of the conformal calibration procedure. As $\delta$ increases, MPIW decreases substantially, reflecting narrower intervals at lower coverage targets. The consistent alignment between nominal and empirical coverage across multiple $\delta$ values demonstrates the robustness of the approach and its suitability for configurable risk-aware deployment.
+
+\begin{table}[htbp]
+\centering
+\caption{Prediction interval performance under different miscoverage levels $\delta$.}
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{$\delta$} & \textbf{Nominal Coverage} & \textbf{PICP} & \textbf{MPIW} & \textbf{WIS} \\
+\hline
+0.1 & 90\% & 0.8851 & 0.2483 & 0.2945 \\
+\hline
+0.2 & 80\% & 0.7820 & 0.1502 & 0.2084 \\
+\hline
+0.4 & 60\% & 0.5824 & 0.0846 & 0.1544 \\
+\hline
+\end{tabular}
+\label{tab:sensi}
+\end{table}
+\vspace{-4mm}
+
+\subsection{Risk-aware evaluation}
+
+
+
+
+\section{Conclusion}
+
+We presented a probabilistic spatio-temporal EV charging demand forecasting framework that extends a deterministic GAT-Informer backbone with a monotonic quantile head and conformal calibration. The monotonic parameterization eliminates quantile crossing by construction, while CQR provides distribution-free finite-sample coverage guarantees. Empirical evaluation on the UrbanEV benchmark demonstrates that the quantile model improves median prediction accuracy over the deterministic baseline, achieving a 35.7\% reduction in MAE. While the conformal calibration substantially closes the gap between nominal and empirical coverage (62.2\% to 88.5\%) with negligible impact on interval width. 
+
+
+% \subsection{Coverage Visualization}
+
+% To further illustrate calibration performance, Fig. 1 shows empirical coverage before and after calibration relative to the nominal level.
+
+% The uncalibrated model consistently under-covers, while the calibrated intervals closely align with the target coverage. This demonstrates that conformal adjustment effectively corrects distributional miscalibration without modifying the forecasting backbone.
+
+
+% \begin{figure}[htbp]
+% \centerline{\includegraphics{fig1.png}}
+% \caption{Example of a figure caption.}
+% \label{fig}
+% \end{figure}
+
+\begin{thebibliography}{00}
+
+
+\bibitem{mine}
+R. Kong, A. S. Al‑Sumaiti, K. H. Al Hosani, and M. B. Abdelghany,
+``Data-Driven Optimization of Hybrid EV Charging Infrastructure: From Cross-City Demand Forecasting to Dynamic Allocation,'' under review.
+
+\bibitem{urbanev} H. Li, H. Qu, X. Tan, L. You, R. Zhu, and W. Fan, ``UrbanEV: An open benchmark dataset for urban electric vehicle charging demand prediction,'' \textit{Scientific Data}, vol. 12, no. 1, p. 523, 2025.
+
+% \bibitem{b1} G. Eason, B. Noble, and I. N. Sneddon, ``On certain integrals of Lipschitz-Hankel type involving products of Bessel functions,'' Phil. Trans. Roy. Soc. London, vol. A247, pp. 529--551, April 1955.
+% \bibitem{b2} J. Clerk Maxwell, A Treatise on Electricity and Magnetism, 3rd ed., vol. 2. Oxford: Clarendon, 1892, pp.68--73.
+
+\end{thebibliography}
+
+\end{document}

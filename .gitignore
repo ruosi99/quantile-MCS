@@ -1,0 +1,18 @@
+# data
+data/
+datasets/
+
+# model weights
+*.pt
+*.pth
+
+# results
+results/
+quantile_model/*_results/
+
+# python
+__pycache__/
+*.pyc
+
+# system
+.DS_Store

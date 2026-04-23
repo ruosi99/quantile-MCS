@@ -1,0 +1,4 @@
+model = "gpt-5.4"
+
+[projects."/PATH/TO/YOUR/REPO"]
+trust_level = "trusted"
