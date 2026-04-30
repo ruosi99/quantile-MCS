@@ -1,7 +1,7 @@
 # Experiment Status
 
 ## Objective
-Keep a lightweight handoff record so the GPU experiment machine and Codex can resume work quickly.
+Keep a lightweight handoff record so Lenovo, Dell, and Codex can resume work quickly.
 
 ## Canonical Outputs
 - `canonical_main_results/` contains the main paper-facing forecasting outputs.
@@ -16,9 +16,20 @@ Keep a lightweight handoff record so the GPU experiment machine and Codex can re
 - Future experiment exchange should prefer committed scripts, committed metadata, and tracked result folders instead of manual zip drops.
 
 ## Current Practical Constraints
-- This machine does not have a usable GPU for training experiments.
-- The other Windows machine is the main experiment runner.
+- Lenovo is configured with the `py12` CUDA environment for experiment runs.
+- Dell remains the preferred place for broad code editing and repository cleanup.
 - New experiment coordination will happen by switching branches and syncing through git.
+
+## Latest GPU-Machine Run
+- Version: `stage0-h1-parity-gpu-2026-04-30`
+- Date: `2026-04-30`
+- Branch: `multi_horizon_journal`
+- Base commit before local fixes: `663a85a`
+- Status: Stage 0 H=[1] journal parity gate passed.
+- Detailed log: `docs/journal_stage0/h1_parity_experiment_log.md`
+- Parity report: `docs/journal_stage0/h1_parity_report.json`
+- Candidate output directory on Lenovo: `journal_results/stage0_h1_parity/`
+- Main result: `predict_quantiles` matched the canonical reference with MAE `6.999567535129148e-08`; labels matched exactly.
 
 ## Immediate Priorities
 - Keep repository context accurate enough for Codex to resume work on either machine.
@@ -31,7 +42,7 @@ Keep a lightweight handoff record so the GPU experiment machine and Codex can re
 1. Create or switch to a dedicated experiment branch.
 2. Update docs before leaving one machine if the experiment goal changed.
 3. Add or update the bash script that defines the experiment.
-4. Run the experiment on the GPU machine.
+4. Run the experiment on Lenovo.
 5. Commit the script, metadata, and only the outputs worth preserving.
 
 ## Journal Exploration Notes
@@ -39,3 +50,4 @@ Keep a lightweight handoff record so the GPU experiment machine and Codex can re
 - The journal line currently targets multi-horizon forecasting plus stratified conformal calibration.
 - Conference canonical outputs should remain unchanged unless explicitly regenerated for the conference story.
 - Journal-specific outputs should live in journal-specific directories rather than `canonical_main_results/`.
+- The direct multi-horizon Stage 1 path should not start until the Stage 0 fixes and parity report are committed and pushed.

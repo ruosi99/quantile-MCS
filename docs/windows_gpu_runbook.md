@@ -1,7 +1,11 @@
 # Windows GPU Runbook
 
 ## Purpose
-This document explains how to hand work off between the local editing machine and the Windows GPU experiment machine.
+This document explains how to hand work off between Dell and Lenovo.
+
+## Machine Names
+- `Dell`: original/editing machine for broad code editing, repository cleanup, and paper-facing packaging.
+- `Lenovo`: Windows GPU experiment machine for CUDA runs, heavy evaluation, and generated experiment outputs.
 
 ## Assumptions
 - Both machines are Windows machines.
@@ -9,13 +13,13 @@ This document explains how to hand work off between the local editing machine an
 - Git is the primary synchronization mechanism.
 
 ## Recommended Machine Roles
-- Editing machine: code changes, documentation updates, cleanup, lightweight checks.
-- GPU machine: training runs, heavy evaluation, and result generation that depends on CUDA.
+- Dell: code changes, documentation updates, cleanup, lightweight checks.
+- Lenovo: training runs, heavy evaluation, and result generation that depends on CUDA.
 
 ## Standard Handoff Flow
 1. Commit or stash local work before switching machines.
 2. Push the current branch after updating scripts and docs.
-3. On the GPU machine, pull the same branch.
+3. On Lenovo, pull the same branch.
 4. Activate the experiment environment.
 5. Run the intended bash script from the repository root.
 6. Commit back the script changes, useful metadata, and only the outputs worth preserving.
@@ -31,6 +35,33 @@ This document explains how to hand work off between the local editing machine an
 - The exact script used.
 - Output directory names.
 - Any important notes about runtime, CUDA behavior, or failed attempts.
+
+## Current Stage 0 Handoff Record
+- Version: `stage0-h1-parity-gpu-2026-04-30`
+- Date: `2026-04-30`
+- Branch: `multi_horizon_journal`
+- Detailed experiment log: `docs/journal_stage0/h1_parity_experiment_log.md`
+- Parity report: `docs/journal_stage0/h1_parity_report.json`
+- Candidate output directory on Lenovo: `journal_results/stage0_h1_parity/`
+- Status: H=[1] journal parity passed; labels match exactly and prediction differences are floating-point scale.
+
+## Sync Guidance For Stage 0
+Use normal Git for:
+- code changes under `train.py`, `utils/`, and `scripts/`
+- documentation under `docs/`
+- lightweight JSON/Markdown reports, especially `docs/journal_stage0/h1_parity_report.json`
+
+Avoid normal Git for large experiment artifacts unless Git LFS rules are expanded:
+- `.pt` checkpoints
+- large `.npy` arrays
+- full generated result folders such as `journal_results/stage0_h1_parity/`
+
+Current `.gitignore` ignores `journal_results/` to avoid accidental large result commits.
+Current `.gitattributes` only sends `*.csv` to Git LFS. It does not cover `.npy`, `.pt`, or image files.
+Therefore, the recommended Stage 0 transfer is:
+1. commit and push code, docs, and `h1_parity_report.json`
+2. transfer `journal_results/stage0_h1_parity/` separately if Dell needs the full arrays
+3. add explicit Git LFS rules before tracking large future journal result arrays through Git
 
 ## Result Management Guidance
 - Keep canonical, paper-facing outputs in clearly named tracked directories.

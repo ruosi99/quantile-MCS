@@ -175,7 +175,7 @@ def main():
     # ==============================
     node_variance = np.var(train_demand, axis=0)
     checkpoint_path = f'{out_dir}/{model_name}_{pred_len}_bs{batch_size}_{mode}.pt'
-    model = torch.load(checkpoint_path, map_location=device)
+    model = torch.load(checkpoint_path, map_location=device, weights_only=False)
     model.eval()
 
     delta_list = [0.1, 0.2, 0.4]

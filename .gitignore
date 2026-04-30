@@ -9,6 +9,7 @@ datasets/
 # results
 results/
 quantile_model/*_results/
+journal_results/
 
 # python
 __pycache__/

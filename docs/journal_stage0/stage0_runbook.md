@@ -1,13 +1,13 @@
 # Journal Stage 0 Runbook
 
 ## Purpose
-This runbook defines the remaining operational steps needed to close Stage 0 on the GPU machine.
+This runbook defines the remaining operational steps needed to close Stage 0 on Lenovo.
 
 ## What Stage 0 Already Locks
 - dataset and split manifests
 - horizon and quantile configuration
 - tensor contract
-- contract and audit tests on the editing machine
+- contract and audit tests on Dell
 
 ## Remaining Stage 0 Gate
 The last hard gate before Stage 1 is the `H=[1]` journal parity check.
@@ -18,19 +18,16 @@ The last hard gate before Stage 1 is the `H=[1]` journal parity check.
 - [run_journal_h1_parity.sh](/C:/Users/100064422/PhD_projects/quntile/mcs-mcs_quantile/mcs-mcs_quantile/scripts/journal/run_journal_h1_parity.sh)
 - [check_h1_parity.py](/C:/Users/100064422/PhD_projects/quntile/mcs-mcs_quantile/mcs-mcs_quantile/scripts/journal/check_h1_parity.py)
 
-## GPU-Machine Sequence
+## Lenovo Sequence
 1. Pull the current branch.
 2. Run:
 ```bash
 bash scripts/journal/run_journal_h1_parity.sh
 ```
-3. Put the journal candidate output under `journal_results/stage0_h1_parity/`.
-4. Compare it against the legacy reference with:
-```bash
-python scripts/journal/check_h1_parity.py \
-  --reference-dir canonical_main_results \
-  --candidate-dir journal_results/stage0_h1_parity \
-  --report-file docs/journal_stage0/h1_parity_report.json
+3. The script copies the journal candidate output into `journal_results/stage0_h1_parity/`.
+4. The script compares it against the legacy reference and writes:
+```text
+docs/journal_stage0/h1_parity_report.json
 ```
 
 ## Expected Output

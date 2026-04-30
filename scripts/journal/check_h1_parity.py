@@ -46,6 +46,8 @@ def main() -> None:
     parser.add_argument("--reference-dir", required=True)
     parser.add_argument("--candidate-dir", required=True)
     parser.add_argument("--point-metrics-file", default="dura_pag_informer_quantile_on_pretrain_1bs8_point_q50.csv")
+    parser.add_argument("--reference-point-metrics-file", default="")
+    parser.add_argument("--candidate-point-metrics-file", default="")
     parser.add_argument("--predict-file", default="predict_quantiles.npy")
     parser.add_argument("--label-file", default="label_list.npy")
     parser.add_argument("--report-file", default="")
@@ -53,6 +55,8 @@ def main() -> None:
 
     reference_dir = Path(args.reference_dir)
     candidate_dir = Path(args.candidate_dir)
+    reference_point_metrics_file = args.reference_point_metrics_file or args.point_metrics_file
+    candidate_point_metrics_file = args.candidate_point_metrics_file or args.point_metrics_file
 
     array_report = compare_arrays(
         np.load(reference_dir / args.predict_file),
@@ -63,8 +67,8 @@ def main() -> None:
         np.load(candidate_dir / args.label_file),
     )
     metrics_report = compare_metrics(
-        reference_dir / args.point_metrics_file,
-        candidate_dir / args.point_metrics_file,
+        reference_dir / reference_point_metrics_file,
+        candidate_dir / candidate_point_metrics_file,
     )
 
     report = {

@@ -17,14 +17,8 @@
       0.05,
       0.1,
       0.2,
-      0.3,
-      0.4,
       0.5,
-      0.6,
-      0.7,
-      0.75,
       0.8,
-      0.8333333333333334,
       0.9,
       0.95
     ]
@@ -32,7 +26,8 @@
   "parity_targets": {
     "legacy_reference_dir": "canonical_main_results",
     "journal_candidate_dir": "journal_results/stage0_h1_parity",
-    "point_metrics_csv": "dura_pag_informer_quantile_on_pretrain_1bs8_point_q50.csv",
+    "reference_point_metrics_csv": "canonical_point_q50.csv",
+    "candidate_point_metrics_csv": "dura_pag_informer_quantile_on_pretrain_1bs8_point_q50.csv",
     "predict_quantiles_npy": "predict_quantiles.npy",
     "label_npy": "label_list.npy"
   }

@@ -214,7 +214,7 @@ def metrics_new(test_pre, test_real):
     print('MAE: {}'.format(MAE))
     print('MSE: {}'.format(MSE))
     print('RMSE: {}'.format(RMSE))
-    print('R²: {}'.format(R2))
+    print('R2: {}'.format(R2))
     print('RAE: {}'.format(RAE))
     print('MedAE: {}'.format(MedAE))
     print('EVS: {}'.format(EVS))

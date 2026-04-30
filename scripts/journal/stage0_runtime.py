@@ -14,7 +14,8 @@ STAGE0_DIR = REPO_ROOT / "docs" / "journal_stage0"
 DATA_DIR = "data/datasets/ST_EVCDP_v2_canonical/"
 MODEL_NAME = "dura_pag_informer_quantile_on_pretrain"
 LOAD_METHOD = "models.PAGInformerQuantile(a_sparse=adj_sparse, seq=seq_len, quantiles=quantiles).to(device)"
-H1_QUANTILES = DEFAULT_JOURNAL_QUANTILES
+LEGACY_H1_QUANTILES = [0.05, 0.1, 0.2, 0.5, 0.8, 0.9, 0.95]
+H1_QUANTILES = LEGACY_H1_QUANTILES
 
 
 def _quantile_arg(quantiles: list[float]) -> str:
@@ -43,7 +44,8 @@ def build_h1_run_spec() -> dict:
         "parity_targets": {
             "legacy_reference_dir": "canonical_main_results",
             "journal_candidate_dir": "journal_results/stage0_h1_parity",
-            "point_metrics_csv": f"{MODEL_NAME}_1bs8_point_q50.csv",
+            "reference_point_metrics_csv": "canonical_point_q50.csv",
+            "candidate_point_metrics_csv": f"{MODEL_NAME}_1bs8_point_q50.csv",
             "predict_quantiles_npy": "predict_quantiles.npy",
             "label_npy": "label_list.npy",
         },
