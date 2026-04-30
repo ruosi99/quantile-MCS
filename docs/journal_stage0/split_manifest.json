@@ -1,0 +1,43 @@
+{
+  "total_time_steps": 8760,
+  "seq_len": 24,
+  "max_horizon": 24,
+  "splits": {
+    "train": {
+      "start_index": 0,
+      "end_index_exclusive": 6132,
+      "length": 6132,
+      "start_time": "2022-09-01 00:00:00",
+      "end_time": "2023-05-14 11:00:00",
+      "usable_windows_for_max_horizon": 6084
+    },
+    "valid": {
+      "start_index": 6132,
+      "end_index_exclusive": 7007,
+      "length": 875,
+      "start_time": "2023-05-14 12:00:00",
+      "end_time": "2023-06-19 22:00:00",
+      "usable_windows_for_max_horizon": 827
+    },
+    "calib": {
+      "start_index": 7007,
+      "end_index_exclusive": 7883,
+      "length": 876,
+      "start_time": "2023-06-19 23:00:00",
+      "end_time": "2023-07-26 10:00:00",
+      "usable_windows_for_max_horizon": 828
+    },
+    "test": {
+      "start_index": 7883,
+      "end_index_exclusive": 8760,
+      "length": 877,
+      "start_time": "2023-07-26 11:00:00",
+      "end_time": "2023-08-31 23:00:00",
+      "usable_windows_for_max_horizon": 829
+    }
+  },
+  "dataset": "ST_EVCDP_v2_canonical",
+  "station_count": 1682,
+  "time_start": "2022-09-01 00:00:00",
+  "time_end": "2023-08-31 23:00:00"
+}

@@ -1,0 +1,30 @@
+name: quantile-mcs
+channels:
+  - pytorch
+  - pyg
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - numpy
+  - pandas
+  - scipy
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  - tqdm
+  - joblib
+  - pillow
+  - requests
+  - statsmodels
+  - einops
+  - geopandas
+  - shapely
+  - geopy
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pyg
+  - pip
+  - pip:
+      - torch-scatter

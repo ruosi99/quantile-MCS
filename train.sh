@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/activate_env.sh"
+
 python train.py \
     --data_dir "data/datasets/ST_EVCDP_v2/" \
     --model_name dura_pag_informer_quantile_on_pretrain \

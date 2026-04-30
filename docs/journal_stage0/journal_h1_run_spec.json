@@ -1,0 +1,39 @@
+{
+  "stage": "0.3",
+  "goal": "H=[1] parity gate for the journal path",
+  "dataset": "ST_EVCDP_v2_canonical",
+  "legacy_entry": "train.py",
+  "journal_mode": "single-horizon parity",
+  "output_root": "journal_results/stage0_h1_parity",
+  "train_args": {
+    "data_dir": "data/datasets/ST_EVCDP_v2_canonical/",
+    "model_name": "dura_pag_informer_quantile_on_pretrain",
+    "load_method": "models.PAGInformerQuantile(a_sparse=adj_sparse, seq=seq_len, quantiles=quantiles).to(device)",
+    "is_train": false,
+    "is_pre_train": true,
+    "use_cuda": true,
+    "batch_size": 8,
+    "quantiles": [
+      0.05,
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7,
+      0.75,
+      0.8,
+      0.8333333333333334,
+      0.9,
+      0.95
+    ]
+  },
+  "parity_targets": {
+    "legacy_reference_dir": "canonical_main_results",
+    "journal_candidate_dir": "journal_results/stage0_h1_parity",
+    "point_metrics_csv": "dura_pag_informer_quantile_on_pretrain_1bs8_point_q50.csv",
+    "predict_quantiles_npy": "predict_quantiles.npy",
+    "label_npy": "label_list.npy"
+  }
+}
