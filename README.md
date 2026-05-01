@@ -9,7 +9,7 @@ The project extends a deterministic GAT-Informer forecasting model with:
 - risk-aware evaluation
 
 ## Collaboration Goal
-This repository is actively edited on one Windows machine and used for GPU experiments on another Windows machine.
+This repository is actively edited on the Dell machine and used for GPU experiments on the Lenovo machine.
 The priority is to keep the project easy for both humans and Codex to resume without re-discovering context.
 
 ## Current Focus

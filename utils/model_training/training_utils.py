@@ -112,6 +112,23 @@ def create_rnn_data(dataset, lookback, predict_time):
     return np.array(x), np.array(y)
 
 
+def create_multi_horizon_rnn_data(dataset, lookback, horizons):
+    horizon_list = [int(h) for h in horizons]
+    if not horizon_list:
+        raise ValueError("horizons must contain at least one forecast horizon")
+    if min(horizon_list) < 1:
+        raise ValueError(f"horizons must be positive, got {horizon_list}")
+
+    max_horizon = max(horizon_list)
+    x = []
+    y = []
+    # Match create_rnn_data's sample-count convention for H=[1].
+    for i in range(len(dataset) - lookback - max_horizon):
+        x.append(dataset[i:i + lookback])
+        y.append([dataset[i + lookback + h - 1] for h in horizon_list])
+    return np.array(x), np.array(y)
+
+
 def get_a_delta(adj):  # D^-1/2 * A * D^-1/2
     # adj.shape = np.size(node, node)
     deg = np.sum(adj, axis=0)
@@ -238,6 +255,26 @@ class CreateDataset(Dataset):
         output_occ = torch.transpose(self.occ[idx, :, :], 0, 1)
         output_prc = torch.transpose(self.prc[idx, :, :], 0, 1)
         output_label = self.label[idx, :]
+        return output_occ, output_prc, output_label
+
+
+class CreateMultiHorizonDataset(Dataset):
+    def __init__(self, occ, prc, seq_l, horizons, device):  # adj
+        occ, label = create_multi_horizon_rnn_data(occ, seq_l, horizons)
+        prc, _ = create_multi_horizon_rnn_data(prc, seq_l, horizons)
+        self.occ = torch.Tensor(occ)
+        self.prc = torch.Tensor(prc)
+        self.label = torch.Tensor(label)
+        self.horizons = [int(h) for h in horizons]
+        self.device = device
+
+    def __len__(self):
+        return len(self.occ)
+
+    def __getitem__(self, idx):  # occ: batch, seq, node
+        output_occ = torch.transpose(self.occ[idx, :, :], 0, 1)
+        output_prc = torch.transpose(self.prc[idx, :, :], 0, 1)
+        output_label = self.label[idx].permute(1, 0)  # (N,H)
         return output_occ, output_prc, output_label
 
 def create_time_windows(time_index, seq_len, pred_len):

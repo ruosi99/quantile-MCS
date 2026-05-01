@@ -26,8 +26,9 @@ def test_h1_run_spec_uses_single_horizon():
 
 def test_multihorizon_stub_marks_placeholder_status():
     spec = build_multihorizon_stub_spec()
-    assert spec["status"] == "placeholder until Stage 1 code path exists"
+    assert spec["status"] == "stage1 raw path available; calibration remains pending"
     assert spec["horizon_config"]["horizons"] == [1, 3, 6, 12, 24]
+    assert spec["expected_training_entry"] == "scripts/journal/run_stage1_multihorizon_raw.sh"
 
 
 def test_compare_arrays_reports_zero_error_for_identical_inputs():

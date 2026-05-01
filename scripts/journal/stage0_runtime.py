@@ -55,13 +55,14 @@ def build_h1_run_spec() -> dict:
 def build_multihorizon_stub_spec() -> dict:
     config = build_horizon_config()
     return {
-        "stage": "1.1-prep",
-        "goal": "Reserved scaffold for the future direct multi-horizon run",
-        "status": "placeholder until Stage 1 code path exists",
+        "stage": "1.1",
+        "goal": "Direct multi-horizon raw forecasting baseline",
+        "status": "stage1 raw path available; calibration remains pending",
         "dataset": "ST_EVCDP_v2_canonical",
         "planned_output_root": "journal_results/shenzhen_multihorizon/raw",
         "horizon_config": config,
-        "expected_training_entry": "journal multi-horizon training entry to be added after Stage 0 closes",
+        "expected_training_entry": "scripts/journal/run_stage1_multihorizon_raw.sh",
+        "expected_python_entry": "scripts/journal/train_multihorizon_raw.py",
     }
 
 

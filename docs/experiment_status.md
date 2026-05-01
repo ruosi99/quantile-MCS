@@ -31,6 +31,17 @@ Keep a lightweight handoff record so Lenovo, Dell, and Codex can resume work qui
 - Candidate output directory on Lenovo: `journal_results/stage0_h1_parity/`
 - Main result: `predict_quantiles` matched the canonical reference with MAE `6.999567535129148e-08`; labels matched exactly.
 
+## Latest Stage 1 Implementation Status
+- Version: `stage1-multihorizon-raw-scaffold-2026-04-30`
+- Date: `2026-04-30`
+- Branch: `multi_horizon_journal`
+- Status: direct multi-horizon raw path implemented and smoke-tested on Lenovo.
+- Detailed log: `docs/journal_stage1_multihorizon_raw.md`
+- New launcher: `scripts/journal/run_stage1_multihorizon_raw.sh`
+- New Python entry: `scripts/journal/train_multihorizon_raw.py`
+- Smoke output shape: `predict_quantiles = (2, 1682, 5, 13)`, `label_list = (2, 1682, 5)`.
+- Full Stage 1 training is pending and should write to `journal_results/shenzhen_multihorizon/raw/`.
+
 ## Immediate Priorities
 - Keep repository context accurate enough for Codex to resume work on either machine.
 - Standardize bash-based experiment entry points.
@@ -50,4 +61,4 @@ Keep a lightweight handoff record so Lenovo, Dell, and Codex can resume work qui
 - The journal line currently targets multi-horizon forecasting plus stratified conformal calibration.
 - Conference canonical outputs should remain unchanged unless explicitly regenerated for the conference story.
 - Journal-specific outputs should live in journal-specific directories rather than `canonical_main_results/`.
-- The direct multi-horizon Stage 1 path should not start until the Stage 0 fixes and parity report are committed and pushed.
+- The direct multi-horizon Stage 1 scaffold is available; full raw training should be reviewed before Stage 2 calibration begins.

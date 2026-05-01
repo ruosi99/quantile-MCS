@@ -1271,14 +1271,18 @@ class PAGInformerAblation(nn.Module):
             return out.view(b, n)
 
 class PAGInformerQuantile(nn.Module):
-    def __init__(self, a_sparse, seq=12, pred_len=6, hidden_dim=128, quantiles=None):
+    def __init__(self, a_sparse, seq=12, pred_len=6, hidden_dim=128, quantiles=None, horizons=None):
         super(PAGInformerQuantile, self).__init__()
 
         if quantiles is None:
             quantiles = [0.05, 0.1, 0.2, 0.5, 0.8, 0.9, 0.95]
+        if horizons is None:
+            horizons = [1]
 
-        self.quantiles = quantiles
+        self.quantiles = [float(q) for q in quantiles]
         self.Q = len(quantiles)
+        self.horizons = [int(h) for h in horizons]
+        self.H = len(self.horizons)
 
         self.seq = seq
         self.pred_len = pred_len
@@ -1307,7 +1311,7 @@ class PAGInformerQuantile(nn.Module):
         self.quantile_head = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, self.Q)  # base + increments
+            nn.Linear(hidden_dim, self.H * self.Q)  # base + increments per horizon
         )
 
         self.softplus = nn.Softplus()
@@ -1333,7 +1337,11 @@ class PAGInformerQuantile(nn.Module):
         # informer 输出: (B, N, pred_len, hidden_dim)
         y = self.informer(occ_conv2)
 
-        raw_q = self.quantile_head(y)  # (B, N, Q)
+        raw_q = self.quantile_head(y)
+        horizon_count = int(getattr(self, "H", 1))
+        quantile_count = int(getattr(self, "Q", raw_q.shape[-1]))
+        if horizon_count > 1:
+            raw_q = raw_q.view(b, n, horizon_count, quantile_count)  # (B,N,H,Q)
 
         # ===== 单调构造 =====
 

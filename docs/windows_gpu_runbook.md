@@ -45,6 +45,22 @@ This document explains how to hand work off between Dell and Lenovo.
 - Candidate output directory on Lenovo: `journal_results/stage0_h1_parity/`
 - Status: H=[1] journal parity passed; labels match exactly and prediction differences are floating-point scale.
 
+## Current Stage 1 Handoff Record
+- Version: `stage1-multihorizon-raw-scaffold-2026-04-30`
+- Date: `2026-04-30`
+- Detailed implementation log: `docs/journal_stage1_multihorizon_raw.md`
+- Lenovo launcher: `scripts/journal/run_stage1_multihorizon_raw.sh`
+- Python entry: `scripts/journal/train_multihorizon_raw.py`
+- Smoke status: passed on Lenovo with `predict_quantiles = (2, 1682, 5, 13)`.
+- Full run command:
+```bash
+bash scripts/journal/run_stage1_multihorizon_raw.sh
+```
+- Full run output directory:
+```text
+journal_results/shenzhen_multihorizon/raw/
+```
+
 ## Sync Guidance For Stage 0
 Use normal Git for:
 - code changes under `train.py`, `utils/`, and `scripts/`
