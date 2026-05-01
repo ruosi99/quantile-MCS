@@ -42,6 +42,17 @@ Keep a lightweight handoff record so Lenovo, Dell, and Codex can resume work qui
 - Smoke output shape: `predict_quantiles = (2, 1682, 5, 13)`, `label_list = (2, 1682, 5)`.
 - Full Stage 1 training is pending and should write to `journal_results/shenzhen_multihorizon/raw/`.
 
+## Latest Stage 1B Warm-Start Status
+- Version: `stage1B-warmstart-scaffold-2026-05-01`
+- Date: `2026-05-01`
+- Branch: `multi_horizon_journal`
+- Status: warm-start path implemented; full Lenovo run pending.
+- Detailed log: `docs/journal_stage1B_warmstart.md`
+- New launcher: `scripts/journal/run_stage1_multihorizon_warmstart.sh`
+- Warm-start source checkpoint: `quantile_model/dura_pag_informer_quantile_on_pretrain_results/dura_pag_informer_quantile_on_pretrain_1_bs8_completed.pt`
+- Planned output directory: `journal_results/shenzhen_multihorizon/warmstart_raw/`
+- Primary comparison target: Stage 1A from-scratch raw output in `journal_results/shenzhen_multihorizon/raw/`.
+
 ## Immediate Priorities
 - Keep repository context accurate enough for Codex to resume work on either machine.
 - Standardize bash-based experiment entry points.

@@ -10,6 +10,7 @@ This file is the short operational handoff for the next work session.
 - This branch now also hosts a separate journal exploration stream based on the forecasting codebase, distinct from the conference paper line.
 - On `2026-04-30`, Lenovo passed the journal Stage 0 H=[1] parity gate. See `docs/journal_stage0/h1_parity_experiment_log.md`.
 - On `2026-04-30`, the Stage 1 direct multi-horizon raw path was implemented and smoke-tested on Lenovo. See `docs/journal_stage1_multihorizon_raw.md`.
+- On `2026-05-01`, the Stage 1B warm-start path was added to test canonical H=[1] checkpoint initialization. See `docs/journal_stage1B_warmstart.md`.
 
 ## Immediate Working Priorities
 - Keep forecasting work as the main focus for the conference submission.
@@ -19,6 +20,7 @@ This file is the short operational handoff for the next work session.
 - For the journal branch, define implementation guardrails before changing the multi-horizon forecasting pipeline.
 - Commit and push the Stage 0 H=[1] parity fixes and report before beginning Stage 1 multi-horizon implementation.
 - Review and commit the Stage 1 raw multi-horizon scaffold before launching the full Lenovo run.
+- Run or review Stage 1B warm-start after preserving the Stage 1A raw result.
 
 ## For The Next Codex Session
 - Read `docs/project_goal.md`, `docs/experiment_status.md`, and `docs/windows_gpu_runbook.md` first.
@@ -31,4 +33,5 @@ This file is the short operational handoff for the next work session.
 - Commit and push the Stage 0 H=[1] parity code/documentation changes.
 - Decide whether the full `journal_results/stage0_h1_parity/` candidate output should be transferred separately or tracked through Git LFS.
 - Run the full Stage 1 raw multi-horizon baseline on Lenovo with `bash scripts/journal/run_stage1_multihorizon_raw.sh`.
+- Run the Stage 1B warm-start baseline on Lenovo with `bash scripts/journal/run_stage1_multihorizon_warmstart.sh`.
 - Keep conference-facing and journal-facing outputs clearly separated.

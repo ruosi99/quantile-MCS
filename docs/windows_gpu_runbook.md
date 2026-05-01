@@ -61,6 +61,23 @@ bash scripts/journal/run_stage1_multihorizon_raw.sh
 journal_results/shenzhen_multihorizon/raw/
 ```
 
+## Current Stage 1B Warm-Start Handoff Record
+- Version: `stage1B-warmstart-scaffold-2026-05-01`
+- Detailed implementation log: `docs/journal_stage1B_warmstart.md`
+- Lenovo launcher: `scripts/journal/run_stage1_multihorizon_warmstart.sh`
+- Warm-start checkpoint source:
+```text
+quantile_model/dura_pag_informer_quantile_on_pretrain_results/dura_pag_informer_quantile_on_pretrain_1_bs8_completed.pt
+```
+- Full run command:
+```bash
+bash scripts/journal/run_stage1_multihorizon_warmstart.sh
+```
+- Full run output directory:
+```text
+journal_results/shenzhen_multihorizon/warmstart_raw/
+```
+
 ## Sync Guidance For Stage 0
 Use normal Git for:
 - code changes under `train.py`, `utils/`, and `scripts/`

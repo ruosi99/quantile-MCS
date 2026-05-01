@@ -62,6 +62,79 @@ def git_value(args: list[str]) -> str:
         return "unknown"
 
 
+def load_matching_state_dict(
+    target_model: torch.nn.Module,
+    source_model_or_state: torch.nn.Module | dict[str, torch.Tensor],
+) -> dict[str, object]:
+    if isinstance(source_model_or_state, torch.nn.Module):
+        source_state = source_model_or_state.state_dict()
+    else:
+        source_state = source_model_or_state
+
+    target_state = target_model.state_dict()
+    loadable_state = {}
+    loaded_keys = []
+    skipped_keys = []
+
+    for key, target_value in target_state.items():
+        source_value = source_state.get(key)
+        if source_value is None:
+            skipped_keys.append({
+                "key": key,
+                "reason": "missing_from_source",
+                "target_shape": list(target_value.shape),
+            })
+            continue
+        if tuple(source_value.shape) != tuple(target_value.shape):
+            skipped_keys.append({
+                "key": key,
+                "reason": "shape_mismatch",
+                "source_shape": list(source_value.shape),
+                "target_shape": list(target_value.shape),
+            })
+            continue
+
+        loadable_state[key] = source_value
+        loaded_keys.append(key)
+
+    target_model.load_state_dict(loadable_state, strict=False)
+    return {
+        "loaded_key_count": len(loaded_keys),
+        "skipped_key_count": len(skipped_keys),
+        "loaded_keys": loaded_keys,
+        "skipped_keys": skipped_keys,
+    }
+
+
+def warm_start_model(
+    target_model: torch.nn.Module,
+    checkpoint_path: str,
+    device: torch.device,
+) -> dict[str, object]:
+    if not checkpoint_path:
+        return {"enabled": False}
+
+    path = Path(checkpoint_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Warm-start checkpoint not found: {path}")
+
+    source = torch.load(path, map_location=device, weights_only=False)
+    if isinstance(source, dict) and "state_dict" in source:
+        source = source["state_dict"]
+
+    report = load_matching_state_dict(target_model, source)
+    report.update({
+        "enabled": True,
+        "checkpoint": str(path),
+    })
+    print(
+        "Warm-start loaded "
+        f"{report['loaded_key_count']} matching keys; "
+        f"skipped {report['skipped_key_count']} keys."
+    )
+    return report
+
+
 def point_metrics(test_pre: np.ndarray, test_real: np.ndarray) -> dict[str, float]:
     eps = 0.01
     valid_indices = test_real > eps
@@ -305,6 +378,7 @@ def main() -> None:
     parser.add_argument("--output-dir", default="journal_results/shenzhen_multihorizon/raw")
     parser.add_argument("--model-name", default="journal_dura_pag_informer_quantile_multihorizon_raw")
     parser.add_argument("--load-method", default="")
+    parser.add_argument("--warm-start-checkpoint", default="")
     parser.add_argument("--use-cuda", type=parse_bool, default=True)
     parser.add_argument("--train", type=parse_bool, default=True)
     parser.add_argument("--epochs", type=int, default=200)
@@ -348,6 +422,7 @@ def main() -> None:
         ").to(device)"
     )
     model = eval(load_method)
+    warm_start_report = warm_start_model(model, args.warm_start_checkpoint, device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     loss_fn = QuantileLoss(quantiles=quantiles).to(device)
 
@@ -404,6 +479,7 @@ def main() -> None:
         "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "",
         "split_rates": split_rates,
         "split_lengths": split_lengths,
+        "warm_start": warm_start_report,
         "train_report": train_report,
         "eval_report": eval_report,
         "smoke_limits": {

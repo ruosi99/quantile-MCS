@@ -10,7 +10,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
 import utils.model_training.models as models  # noqa: E402
-from scripts.journal.train_multihorizon_raw import point_metrics, quantile_crossing_metrics  # noqa: E402
+from scripts.journal.train_multihorizon_raw import (  # noqa: E402
+    load_matching_state_dict,
+    point_metrics,
+    quantile_crossing_metrics,
+)
 from utils.model_training.loss_functions import QuantileLoss  # noqa: E402
 from utils.model_training.training_utils import (  # noqa: E402
     CreateMultiHorizonDataset,
@@ -84,3 +88,24 @@ def test_stage1_metric_helpers_are_shape_agnostic():
     pred_q = np.stack([labels, labels + 1.0, labels + 2.0], axis=-1)
     crossing = quantile_crossing_metrics(pred_q)
     assert crossing["crossing_rate"] == 0.0
+
+
+def test_load_matching_state_dict_skips_mismatched_output_layer():
+    source = torch.nn.Sequential(torch.nn.Linear(2, 3), torch.nn.ReLU(), torch.nn.Linear(3, 2))
+    target = torch.nn.Sequential(torch.nn.Linear(2, 3), torch.nn.ReLU(), torch.nn.Linear(3, 5))
+
+    with torch.no_grad():
+        source[0].weight.fill_(1.25)
+        source[0].bias.fill_(0.5)
+        target[0].weight.zero_()
+        target[0].bias.zero_()
+
+    report = load_matching_state_dict(target, source)
+
+    assert report["loaded_key_count"] == 2
+    assert report["skipped_key_count"] == 2
+    assert torch.allclose(target[0].weight, source[0].weight)
+    assert torch.allclose(target[0].bias, source[0].bias)
+    skipped = {item["key"]: item["reason"] for item in report["skipped_keys"]}
+    assert skipped["2.weight"] == "shape_mismatch"
+    assert skipped["2.bias"] == "shape_mismatch"
