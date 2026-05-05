@@ -24,10 +24,10 @@ Build a paper-ready Shenzhen experiment stack that can support the following cla
 2. Infrastructure, contract validation, and H=[1] parity
 3. Multi-horizon baseline
 4. Global and horizon-wise calibration
-5. Stratified conformal calibration
-6. Decision-oriented one-sided calibration
-7. Robustness and ablation experiments
-8. Final figure/table packaging
+5. Diagnostic gate on conditional reliability and boundary effects
+6. Decision-oriented one-sided calibration and decision evaluation
+7. Conditional stratified calibration only if diagnostics justify it
+8. Robustness, ablations, and final figure/table packaging
 
 ## Stage 0: Pre-Implementation Audit And Infrastructure
 
@@ -182,7 +182,80 @@ Implication:
 - if it does not improve localized worst-cell reliability without unacceptable width inflation,
   it should be reported as exploratory rather than central
 
-## Stage 3: Stratified Conformal Calibration
+## Stage 2.5 / Stage 4.0: Diagnostic Gate
+
+### Purpose
+Before implementing any stratified or hierarchical conformal method, determine whether
+global and horizon-wise CQR still leave a meaningful conditional reliability gap that
+justifies a more complex calibration layer.
+
+This stage should be treated as a gate, not as optional plotting.
+
+### Experiment A1: Zero vs Positive-Demand Decomposition
+- Purpose: separate average coverage gains caused by zero-demand boundary rescue from gains on positive-demand cases
+- Required outputs for `raw`, `global_cqr`, and `horizon_cqr`:
+  - `PICP_all`
+  - `PICP_zero`
+  - `PICP_positive`
+  - `ACE_positive`
+  - `MPIW_positive`
+  - `WIS_positive`
+- Scientific purpose:
+  - determine whether the remaining problem is primarily a boundary phenomenon or a broader positive-demand calibration problem
+
+### Experiment A2: Boundary-Rescue Decomposition
+- Purpose: quantify how much of the CQR improvement comes from lower-bound clipping near zero
+- Required outputs:
+  - count of `raw miss -> calibrated cover`
+  - count of rescues caused by lower bound crossing below zero and clipping back to zero
+  - horizon-wise rescue summary
+- Scientific purpose:
+  - provide a defensible explanation for large PICP gains with near-zero MPIW change
+
+### Experiment A3: Hour × Horizon Diagnostics
+- Purpose: inspect whether important localized failure modes remain after global or horizon-wise calibration
+- Required outputs:
+  - PICP heatmap, all samples
+  - ACE heatmap, all samples
+  - PICP heatmap, positive-demand only
+  - ACE heatmap, positive-demand only
+- Scientific purpose:
+  - identify whether peak-hour or long-horizon hard cells still under-cover in an operationally meaningful way
+
+### Experiment A4: Demand-Bin Diagnostics
+- Purpose: check whether calibration quality differs across demand magnitude regimes
+- Minimum bins:
+  - `y = 0`
+  - `0 < y <= q50`
+  - `q50 < y <= q90`
+  - `y > q90`
+- Required outputs:
+  - coverage, ACE, and width summaries by demand bin and horizon
+- Scientific purpose:
+  - separate zero-demand boundary gains from tail-demand reliability behavior
+
+### Experiment A5: Reliability Curves by Horizon
+- Purpose: compare reliability behavior across horizons after Stage 2 methods
+- Required outputs:
+  - horizon-wise reliability curves for `raw`, `global_cqr`, and `horizon_cqr`
+- Scientific purpose:
+  - determine whether a more complex calibration method is still justified after baseline CQR
+
+### Stage 2.5 Gate Rule
+Continue to Stage 3 as a main methodological thread only if at least one of the following remains true after Stage 2:
+- positive-demand `PICP@90` is clearly below `0.85` on any main horizon
+- worst-cell `ACE` remains above roughly `0.08-0.10`
+- peak-hour or long-horizon hard cells remain materially under-covered
+- decision regret remains unstable under global or horizon-wise calibration
+
+If these conditions are not met, Stage 3 should be narrowed and the paper should pivot toward:
+- direct multi-horizon forecasting
+- boundary-aware reliability diagnostics
+- decision-calibrated quantiles
+
+In that case, stratified calibration should be treated as supplementary, exploratory, or appendix material rather than as the central contribution.
+
+## Stage 3: Conditional Stratified Conformal Calibration
 
 ### Experiment 3.1: Station Archetype Construction
 - Purpose: build cheap and reproducible station archetypes from summary features
@@ -205,7 +278,7 @@ Implication:
   - gives the stratified calibration a concrete operational definition
 
 ### Experiment 3.2: Stratified Calibration With Fallback
-- Purpose: calibrate by `horizon × target-hour coarse bin × station archetype` with explicit hierarchical fallback
+- Purpose: if Stage 2.5 shows a real conditional reliability gap, test whether hierarchical stratified calibration can improve localized reliability
 - Default main design:
   - target-hour bins: `00-05`, `06-10`, `11-15`, `16-20`, `21-23`
   - archetypes: start with `K=3`
@@ -226,18 +299,17 @@ Implication:
   - evaluation run: 0.5 to 1 day
 - Success condition:
   - stratified calibration does not collapse because of sparse cells
-  - compared with global and horizon-wise baselines, it improves localized reliability without exploding interval width
+  - compared with global and horizon-wise baselines, it improves positive-demand ACE, worst-cell ACE, tail-demand PICP, or hard-cell under-coverage without unacceptable interval inflation
 - Scientific purpose:
-  - this is the core journal experiment
+  - this is only a core journal experiment if the Stage 2.5 gate shows that simpler calibration is still insufficient
 
 ### Experiment 3.3: Stratification Granularity Ablation
 - Purpose: test how sensitive results are to bucket design
 - Suggested settings:
   - 5 coarse target-hour bins as the main configuration
   - 4 coarse target-hour bins
-  - 6 coarse target-hour bins
+  - `K=2` versus `K=3` archetypes
   - 24 hourly bins only as a negative-control ablation
-  - varying number of archetypes
 - Expected time:
   - implementation reuse: 0.5 day
   - runs and analysis: 1 to 2 days
@@ -246,9 +318,55 @@ Implication:
 - Scientific purpose:
   - defends against the “arbitrary partition” reviewer criticism
 
-## Stage 4: Diagnostic Evaluation
+## Stage 4: Decision-First Evaluation
 
-### Experiment 4.1: Hour-by-Horizon Coverage Heatmap
+### Experiment 4.1: One-Sided Critical-Fractile Calibration
+- Purpose: calibrate the economically relevant target quantile `tau_star = c_u / (c_u + c_o)`
+- Required outputs:
+  - one-sided calibration routine
+  - calibrated target-quantile predictions
+- Expected time:
+  - implementation: 1 to 2 days
+  - evaluation run: 0.5 day
+- Success condition:
+  - the method handles target quantiles consistently for selected cost ratios
+  - the procedure is simple enough to explain cleanly in the paper
+- Scientific purpose:
+  - connects uncertainty quantification to operational decisions
+
+### Experiment 4.2: Decision Cost and Regret Under Multiple Cost Ratios
+- Purpose: make probabilistic forecasting value visible through downstream decision quality
+- Required methods:
+  - median
+  - raw target quantile
+  - global CQR
+  - horizon-wise CQR
+  - stratified CQR if Stage 3 is activated
+  - oracle quantile or oracle decision
+- Required cost-ratio settings:
+  - `1:1` -> `tau_star = 0.5`
+  - `3:1` -> `tau_star = 0.75`
+  - `5:1` -> `tau_star = 0.8333`
+  - `9:1` -> `tau_star = 0.9`
+  - `19:1` -> `tau_star = 0.95`
+- Required outputs:
+  - expected cost
+  - regret versus oracle
+  - shortage rate
+  - overage rate
+  - horizon-wise summaries
+  - cost-ratio summaries
+- Expected time:
+  - implementation: 1 to 2 days
+  - analysis: 0.5 to 1 day
+- Success condition:
+  - at least one calibrated strategy clearly improves cost or regret relative to median and raw target-quantile choices
+- Scientific purpose:
+  - this is now a main experiment, not a late optional extension
+
+## Stage 5: Robustness, Diagnostics, And Conditional Extensions
+
+### Experiment 5.1: Hour-by-Horizon Coverage Heatmap
 - Purpose: visualize where calibration succeeds or fails
 - Required outputs:
   - hour × horizon PICP heatmap
@@ -262,7 +380,7 @@ Implication:
 - Scientific purpose:
   - likely one of the most persuasive paper figures
 
-### Experiment 4.2: Reliability Curves by Horizon
+### Experiment 5.2: Reliability Curves by Horizon
 - Purpose: evaluate calibration quality across horizons in a reviewer-friendly way
 - Required outputs:
   - reliability curves by horizon
@@ -275,45 +393,7 @@ Implication:
 - Scientific purpose:
   - supports the reliability claim more clearly than only reporting PICP
 
-## Stage 5: Decision-Oriented Evaluation
-
-### Experiment 5.1: One-Sided Critical-Fractile Calibration
-- Purpose: calibrate the economically relevant target quantile `tau_star = c_u / (c_u + c_o)`
-- Required outputs:
-  - one-sided calibration routine
-  - calibrated target-quantile predictions
-- Expected time:
-  - implementation: 1 to 2 days
-  - evaluation run: 0.5 day
-- Success condition:
-  - the method handles target quantiles consistently for selected cost ratios
-  - the procedure is simple enough to explain cleanly in the paper
-- Scientific purpose:
-  - connects uncertainty quantification to actual operational decisions
-
-### Experiment 5.2: Decision Cost and Regret Under Multiple Cost Ratios
-- Purpose: show that better-calibrated quantiles improve decision quality, not just statistical coverage
-- Required cost-ratio settings:
-  - `1:1` -> `tau_star = 0.5`
-  - `3:1` -> `tau_star = 0.75`
-  - `5:1` -> `tau_star = 0.8333`
-  - `9:1` -> `tau_star = 0.9`
-  - `19:1` -> `tau_star = 0.95`
-- Required outputs:
-  - cost table by horizon
-  - regret table by horizon
-  - optional summary plot
-- Expected time:
-  - implementation: 1 day
-  - analysis: 0.5 to 1 day
-- Success condition:
-  - at least one calibrated strategy clearly outperforms median-only or uncalibrated choices
-- Scientific purpose:
-  - this is the strongest bridge from forecasting to Applied Energy framing
-
-## Stage 6: Robustness and Data Efficiency
-
-### Experiment 6.1: Calibration-Set Size Ablation
+### Experiment 5.3: Calibration-Set Size Ablation
 - Purpose: test how much calibration data is required
 - Suggested settings:
   - 25 percent
@@ -328,7 +408,7 @@ Implication:
 - Scientific purpose:
   - supports practical deployment claims
 
-### Experiment 6.2: Sparse-Strata Stress Test
+### Experiment 5.4: Sparse-Strata Stress Test
 - Purpose: quantify how often fine stratification becomes unreliable
 - Required outputs:
   - number of under-sized cells
@@ -341,7 +421,7 @@ Implication:
 - Scientific purpose:
   - directly addresses the most obvious reviewer concern
 
-### Experiment 6.3: Nominal-Level Sensitivity
+### Experiment 5.5: Nominal-Level Sensitivity
 - Purpose: verify that the journal setup remains credible across more than one nominal coverage target
 - Suggested settings:
   - `delta in {0.1, 0.2, 0.4}`
@@ -353,7 +433,7 @@ Implication:
 - Scientific purpose:
   - preserves continuity with the conference evidence while strengthening the journal version
 
-### Experiment 6.4: Worst-Cell Reliability Summary
+### Experiment 5.6: Worst-Cell Reliability Summary
 - Purpose: summarize whether calibration reduces the most dangerous local failure modes rather than only improving averages
 - Required outputs:
   - worst-cell PICP
@@ -369,7 +449,7 @@ Implication:
 - Scientific purpose:
   - directly supports the paper's local-failure-mode narrative
 
-### Experiment 6.5: Probabilistic-Component Ablation
+### Experiment 5.7: Probabilistic-Component Ablation
 - Purpose: separate the value of the monotonic quantile head from the value of the calibration layer
 - Required comparisons:
   - independent quantile head versus monotonic incremental-softplus head
@@ -401,18 +481,20 @@ Implication:
 ## Suggested Total Timeline
 
 ### Minimal Viable Journal Stack
-- Stage 0 to Stage 2
+- Stage 0 to Stage 2.5
 - Estimated duration: 8 to 12 working days
 - Outcome:
   - multi-horizon forecasting
   - global and horizon-wise calibration
-  - early diagnostics
+  - diagnostic gate evidence
 
 ### Strong Journal Core
-- Stage 0 to Stage 5
+- Stage 0 to Stage 4
 - Estimated duration: 15 to 22 working days
 - Outcome:
-  - everything needed for the main methodological and decision story on Shenzhen
+  - multi-horizon forecasting
+  - calibrated uncertainty
+  - decision-oriented evaluation on Shenzhen
 
 ### Stronger Submission Package
 - Stage 0 to Stage 7
@@ -426,7 +508,7 @@ Implication:
 1. direct multi-horizon baseline
 2. global CQR
 3. horizon-wise CQR
-4. hour-by-horizon diagnostics
+4. diagnostic gate with zero/positive-demand and hour-by-horizon decomposition
 5. one decision-cost experiment
 
 ### Conditional After Stage 2
@@ -463,16 +545,13 @@ The Shenzhen-only phase can be considered successful when:
 5. the stratified method is either validated on worst-cell reliability or honestly narrowed with evidence
 
 ## Recommended Immediate Next Step
-Start with Stage 0 and Experiment 1.1 only.
+Do not implement stratified calibration next by default.
 
-Do not implement stratified calibration first.
+The immediate next checkpoint should be the Diagnostic Gate:
+- zero versus positive-demand decomposition
+- boundary-rescue decomposition
+- hour-by-horizon diagnostics for all samples and positive-demand-only samples
+- demand-bin diagnostics
+- reliability curves by horizon
 
-The first hard checkpoint should be:
-- frozen dataset and split manifests
-- executable tensor-contract tests
-- a successful `H=[1]` parity run
-- a clean multi-horizon training and inference path
-- correct saved tensor shapes
-- per-horizon point and raw interval metrics
-
-Once that is stable, the rest of the paper becomes much easier to evaluate honestly.
+Only after this gate should Stage 3 be confirmed as a main path or narrowed to an exploratory extension.
