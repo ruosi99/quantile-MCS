@@ -255,6 +255,23 @@ If these conditions are not met, Stage 3 should be narrowed and the paper should
 
 In that case, stratified calibration should be treated as supplementary, exploratory, or appendix material rather than as the central contribution.
 
+### Stage 2.5 Evidence Update: 2026-05-05
+The Diagnostic Gate was implemented and run on Lenovo for the Stage 1B warm-start
+result. See `docs/journal_stage2_diagnostic_gate.md`.
+
+Gate summary at 90 percent nominal coverage:
+- positive-demand aggregate coverage did not trigger the `PICP@90 < 0.85` rule
+- worst positive-demand horizon was H1 with `PICP_positive = 0.879434`
+- worst all-sample hour-by-horizon cell was H1 at target hour 10 with `PICP = 0.819822` and `ACE = 0.080178`
+- worst positive-demand-only hour-by-horizon cell was H1 at target hour 18 with `PICP = 0.780394` and `ACE = 0.119606`
+- tail-demand coverage did not trigger undercoverage; the worst tail-bin PICP was `0.940317`
+- the average Stage 2 coverage gain was almost entirely explained by zero-demand lower-bound rescue after clipping
+
+Decision:
+- Stage 3 should not be framed as necessary for marginal 90 percent coverage
+- Stage 3 is still defensible only as a localized reliability experiment for H1 positive-demand or hard hour-by-horizon cells
+- decision-oriented evaluation should be treated as the next paper-significant direction before broad stratified calibration becomes central
+
 ## Stage 3: Conditional Stratified Conformal Calibration
 
 ### Experiment 3.1: Station Archetype Construction

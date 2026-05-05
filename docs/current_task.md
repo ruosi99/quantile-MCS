@@ -13,7 +13,9 @@ This file is the short operational handoff for the next work session.
 - On `2026-05-01`, the Stage 1B warm-start path was added and the full warm-start run was completed. See `docs/journal_stage1B_warmstart.md`.
 - On `2026-05-01`, the Stage 2 global and horizon-wise CQR post-processing path was implemented and smoke-tested. See `docs/journal_stage2_cqr.md`.
 - On `2026-05-01`, the full Stage 2 CQR run was completed for the Stage 1B warm-start model. Global CQR corrected 90 percent mean PICP from `0.638917` to `0.913388` with almost unchanged MPIW.
-- The next journal decision point is a Diagnostic Gate: determine whether remaining errors are mainly boundary-driven or whether they justify a conditional Stage 3 stratified calibration path.
+- On `2026-05-05`, the Stage 2.5 Diagnostic Gate was implemented, tested, and run on Lenovo. See `docs/journal_stage2_diagnostic_gate.md`.
+- Diagnostic Gate result: Stage 2 global CQR's marginal 90 percent coverage gain is mostly a zero-demand boundary-rescue effect, while localized H1 positive-demand hour cells still under-cover.
+- Stage 3 should not be started automatically. If pursued, it should be framed as a localized reliability experiment rather than a required fix for marginal 90 percent coverage.
 
 ## Immediate Working Priorities
 - Keep forecasting work as the main focus for the conference submission.
@@ -26,7 +28,8 @@ This file is the short operational handoff for the next work session.
 - Run or review Stage 1B warm-start after preserving the Stage 1A raw result.
 - Treat Stage 1B warm-start plus Stage 2 global CQR as the current representative multi-horizon calibration result.
 - Reframe adaptive/stratified calibration as a localized reliability or worst-cell ACE experiment, not as a required fix for marginal 90 percent coverage.
-- Run the diagnostic gate before committing to Stage 3 as a main contribution.
+- Use the completed diagnostic gate before committing to Stage 3 as a main contribution.
+- Prioritize decision-oriented evaluation before treating broad stratified calibration as central.
 
 ## For The Next Codex Session
 - Read `docs/project_goal.md`, `docs/experiment_status.md`, and `docs/windows_gpu_runbook.md` first.
@@ -42,5 +45,6 @@ This file is the short operational handoff for the next work session.
 - Run the Stage 1B warm-start baseline on Lenovo with `bash scripts/journal/run_stage1_multihorizon_warmstart.sh`.
 - Stage 2 warm-start CQR has been run with `bash scripts/journal/run_stage2_cqr_warmstart.sh`.
 - `bash scripts/journal/run_stage2_cqr_raw.sh` remains optional because Stage 1A versus Stage 1B is unlikely to become a paper-facing ablation.
-- The next concrete journal task is diagnostic analysis on raw/global/horizon-wise outputs: zero-vs-positive demand, boundary rescue, hour-by-horizon, demand-bin, and reliability-curve summaries.
+- Diagnostic analysis on raw/global/horizon-wise outputs has been completed for the Stage 1B warm-start result.
+- The next concrete journal decision is whether to run decision-oriented evaluation first, or to run a narrowly scoped Stage 3 localized reliability experiment for H1 positive-demand hard cells.
 - Keep conference-facing and journal-facing outputs clearly separated.
