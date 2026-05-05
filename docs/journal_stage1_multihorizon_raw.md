@@ -1,14 +1,14 @@
 # Journal Stage 1 Multi-Horizon Raw Baseline
 
 ## Record Metadata
-- Record version: `stage1-multihorizon-raw-scaffold-2026-04-30`
-- Record date: `2026-04-30 14:44:56 +04:00`
+- Record version: `stage1-multihorizon-raw-full-2026-05-01`
+- Record date: `2026-05-01`
 - Time zone: `Asia/Dubai`
 - Machine used for smoke run: `Lenovo`
 - Git branch: `multi_horizon_journal`
 - Base commit before local Stage 1 edits: `b861229`
 - Stage: `1.1`
-- Status: code path implemented and smoke-tested; full training run is still pending
+- Status: code path implemented, smoke-tested, and full Lenovo training run completed
 
 ## Goal
 Stage 1 adds a direct multi-horizon raw forecasting path for the journal branch.
@@ -138,8 +138,60 @@ run_metadata.json
 *_checkpoint.pt
 ```
 
+Full Lenovo run metadata:
+
+```text
+created_at: 2026-05-01T03:30:20
+branch: multi_horizon_journal
+commit: b861229
+output_dir: journal_results/shenzhen_multihorizon/raw/
+device: cuda:0
+gpu_name: NVIDIA GeForce RTX 3060 Laptop GPU
+batch_size: 4
+epochs: 200
+training_time: 12:39:50
+best_valid_loss: 0.012310015896992118
+best_epoch: 195
+final_epoch_train_loss: 0.01801140
+final_epoch_valid_loss: 0.01266819
+predict_quantiles_shape: [829, 1682, 5, 13]
+label_shape: [829, 1682, 5]
+```
+
+Full-run point metrics:
+
+| Horizon | MAE | RMSE | MAPE | R2 | MedAE |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 0.245080 | 0.860865 | 20.429586 | 0.975357 | 0.057590 |
+| 3 | 0.336551 | 1.150000 | 27.475218 | 0.956131 | 0.061777 |
+| 6 | 0.522251 | 1.680275 | 41.130406 | 0.906643 | 0.075787 |
+| 12 | 0.561272 | 1.614462 | 41.741566 | 0.914005 | 0.066863 |
+| 24 | 0.519250 | 1.424259 | 37.235874 | 0.932507 | 0.079594 |
+
+Raw 90 percent interval coverage before CQR:
+
+| Horizon | PICP | MPIW | WIS |
+|---:|---:|---:|---:|
+| 1 | 0.469888 | 0.963270 | 1.064522 |
+| 3 | 0.638815 | 1.771716 | 1.875286 |
+| 6 | 0.661366 | 2.703414 | 2.853122 |
+| 12 | 0.670741 | 4.473385 | 4.549090 |
+| 24 | 0.668473 | 4.399555 | 4.458932 |
+
+Quantile crossing:
+
+```text
+crossing_rate = 0.0 for all horizons
+```
+
+Main interpretation:
+
+- The direct multi-horizon path is functional and stable.
+- Raw intervals are substantially under-covered, especially for H=1.
+- H=1 point accuracy is much weaker than the dedicated canonical single-step model, so Stage 1A is mainly a baseline for the journal multi-horizon path rather than a replacement for the canonical single-step result.
+
 ## Notes And Boundaries
 - Stage 1 is a raw direct multi-horizon forecasting baseline.
-- Stage 1 does not yet implement global CQR, horizon-wise CQR, stratified conformal calibration, or one-sided decision calibration.
-- Calibration work should begin in Stage 2 after the full Stage 1 run is reviewed.
+- Stage 1 does not implement global CQR, horizon-wise CQR, stratified conformal calibration, or one-sided decision calibration.
+- Calibration work is handled by Stage 2.
 - Conference-facing canonical outputs remain untouched.

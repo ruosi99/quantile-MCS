@@ -163,6 +163,25 @@ Build a paper-ready Shenzhen experiment stack that can support the following cla
 - Scientific purpose:
   - isolates the value of horizon awareness before adding more complex stratification
 
+### Stage 2 Evidence Update: 2026-05-01
+The full Stage 2 run on the Stage 1B warm-start model changed the calibration story.
+
+For the primary 90 percent interval, global CQR already corrected mean PICP from `0.638917`
+to `0.913388`, with mean MPIW changing only from `2.916468` to `2.916553`.
+
+The large coverage gain came mostly from zero-demand lower-bound misses near the nonnegative
+boundary. A very small CQR threshold moves the lower endpoint to zero after clipping, rescuing
+many true-zero observations without materially widening intervals.
+
+Implication:
+- adaptive or stratified calibration is no longer needed as the main mechanism for fixing
+  marginal 90 percent coverage
+- adaptive or stratified calibration should now be evaluated as a localized reliability method:
+  worst-cell ACE, hour-by-horizon under-coverage, lower nominal coverage settings, and
+  station/time subgroups
+- if it does not improve localized worst-cell reliability without unacceptable width inflation,
+  it should be reported as exploratory rather than central
+
 ## Stage 3: Stratified Conformal Calibration
 
 ### Experiment 3.1: Station Archetype Construction
@@ -407,9 +426,12 @@ Build a paper-ready Shenzhen experiment stack that can support the following cla
 1. direct multi-horizon baseline
 2. global CQR
 3. horizon-wise CQR
-4. stratified calibration with hierarchical fallback
-5. hour-by-horizon diagnostics
-6. one decision-cost experiment
+4. hour-by-horizon diagnostics
+5. one decision-cost experiment
+
+### Conditional After Stage 2
+1. stratified calibration with hierarchical fallback, only if framed as a localized reliability or worst-cell improvement experiment
+2. adaptive calibration ablations, only if they improve worst-cell ACE or localized under-coverage without unacceptable width inflation
 
 ### Strongly Recommended
 1. granularity ablation

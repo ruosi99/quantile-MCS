@@ -14,6 +14,8 @@ journal_results/
 # python
 __pycache__/
 *.pyc
+.pytest_cache/
+.pytest_tmp/
 
 # system
 .DS_Store

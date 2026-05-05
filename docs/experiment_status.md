@@ -35,23 +35,43 @@ Keep a lightweight handoff record so Lenovo, Dell, and Codex can resume work qui
 - Version: `stage1-multihorizon-raw-scaffold-2026-04-30`
 - Date: `2026-04-30`
 - Branch: `multi_horizon_journal`
-- Status: direct multi-horizon raw path implemented and smoke-tested on Lenovo.
+- Status: direct multi-horizon raw path implemented, smoke-tested, and full Lenovo run completed.
 - Detailed log: `docs/journal_stage1_multihorizon_raw.md`
 - New launcher: `scripts/journal/run_stage1_multihorizon_raw.sh`
 - New Python entry: `scripts/journal/train_multihorizon_raw.py`
 - Smoke output shape: `predict_quantiles = (2, 1682, 5, 13)`, `label_list = (2, 1682, 5)`.
-- Full Stage 1 training is pending and should write to `journal_results/shenzhen_multihorizon/raw/`.
+- Full Stage 1 output directory: `journal_results/shenzhen_multihorizon/raw/`.
 
 ## Latest Stage 1B Warm-Start Status
 - Version: `stage1B-warmstart-scaffold-2026-05-01`
 - Date: `2026-05-01`
 - Branch: `multi_horizon_journal`
-- Status: warm-start path implemented; full Lenovo run pending.
+- Status: warm-start path implemented and full Lenovo run completed.
 - Detailed log: `docs/journal_stage1B_warmstart.md`
 - New launcher: `scripts/journal/run_stage1_multihorizon_warmstart.sh`
 - Warm-start source checkpoint: `quantile_model/dura_pag_informer_quantile_on_pretrain_results/dura_pag_informer_quantile_on_pretrain_1_bs8_completed.pt`
-- Planned output directory: `journal_results/shenzhen_multihorizon/warmstart_raw/`
+- Output directory: `journal_results/shenzhen_multihorizon/warmstart_raw/`
 - Primary comparison target: Stage 1A from-scratch raw output in `journal_results/shenzhen_multihorizon/raw/`.
+
+## Latest Stage 2 CQR Status
+- Version: `stage2-cqr-warmstart-full-2026-05-01`
+- Date: `2026-05-01`
+- Branch: `multi_horizon_journal`
+- Status: global and horizon-wise CQR post-processing implemented; smoke test passed; full Lenovo warm-start run completed.
+- Detailed log: `docs/journal_stage2_cqr.md`
+- New Python entry: `scripts/journal/calibrate_multihorizon_cqr.py`
+- New launchers:
+  - `scripts/journal/run_stage2_cqr_raw.sh`
+  - `scripts/journal/run_stage2_cqr_warmstart.sh`
+- Completed output directory:
+  - `journal_results/shenzhen_multihorizon/stage2_cqr/warmstart_raw/`
+- Optional output directory not run yet:
+  - `journal_results/shenzhen_multihorizon/stage2_cqr/raw/`
+- Smoke output directory: `journal_results/shenzhen_multihorizon/stage2_cqr/smoke_raw/`
+- Verification: `tests/test_journal_stage2_cqr.py` and `tests/test_journal_stage1_multihorizon.py` passed.
+- Main Stage 2 result: warm-start global CQR improves mean 90 percent PICP from `0.638917` raw to `0.913388`, with mean MPIW changing only from `2.916468` to `2.916553`.
+- Important interpretation: most of the coverage gain comes from correcting zero-demand lower-bound misses near the nonnegative boundary, not from large interval inflation.
+- Adaptive calibration status: no longer needed to fix marginal 90 percent coverage, but still potentially useful as a localized reliability or worst-cell ACE diagnostic.
 
 ## Immediate Priorities
 - Keep repository context accurate enough for Codex to resume work on either machine.
@@ -72,4 +92,5 @@ Keep a lightweight handoff record so Lenovo, Dell, and Codex can resume work qui
 - The journal line currently targets multi-horizon forecasting plus stratified conformal calibration.
 - Conference canonical outputs should remain unchanged unless explicitly regenerated for the conference story.
 - Journal-specific outputs should live in journal-specific directories rather than `canonical_main_results/`.
-- The direct multi-horizon Stage 1 scaffold is available; full raw training should be reviewed before Stage 2 calibration begins.
+- The direct multi-horizon Stage 1A and Stage 1B runs are available; Stage 2 warm-start calibration is complete.
+- The next journal decision is whether adaptive/stratified calibration improves localized worst-cell reliability enough to remain a central paper contribution.
