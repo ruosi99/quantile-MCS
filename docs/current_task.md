@@ -30,6 +30,7 @@ This file is the short operational handoff for the next work session.
 - Reframe adaptive/stratified calibration as a localized reliability or worst-cell ACE experiment, not as a required fix for marginal 90 percent coverage.
 - Use the completed diagnostic gate before committing to Stage 3 as a main contribution.
 - Prioritize decision-oriented evaluation before treating broad stratified calibration as central.
+- Use `docs/journal_stage4_decision_eval.md` as the execution spec for the next Lenovo experiment.
 
 ## For The Next Codex Session
 - Read `docs/project_goal.md`, `docs/experiment_status.md`, and `docs/windows_gpu_runbook.md` first.
@@ -46,5 +47,6 @@ This file is the short operational handoff for the next work session.
 - Stage 2 warm-start CQR has been run with `bash scripts/journal/run_stage2_cqr_warmstart.sh`.
 - `bash scripts/journal/run_stage2_cqr_raw.sh` remains optional because Stage 1A versus Stage 1B is unlikely to become a paper-facing ablation.
 - Diagnostic analysis on raw/global/horizon-wise outputs has been completed for the Stage 1B warm-start result.
-- The next concrete journal decision is whether to run decision-oriented evaluation first, or to run a narrowly scoped Stage 3 localized reliability experiment for H1 positive-demand hard cells.
+- The next concrete journal task is to implement and run the Stage 4 decision-first evaluation on the Stage 1B warm-start and Stage 2 warm-start outputs.
+- Only after the Stage 4 decision result is reviewed should the branch decide whether to run a narrowly scoped Stage 3 localized reliability experiment for H1 positive-demand hard cells.
 - Keep conference-facing and journal-facing outputs clearly separated.
