@@ -97,3 +97,28 @@ The most journal-efficient next step is:
 2. formalize the decision-value attribution
 3. add confidence intervals
 4. only then decide whether a narrow localized calibration experiment is worth the extra time
+
+## Evidence Assets Update: 2026-05-06
+The first paper-facing evidence package has been exported on Lenovo. See:
+
+- `docs/journal_paper_assets.md`
+- `journal_results/shenzhen_multihorizon/paper_assets/`
+
+The export includes:
+- boundary-aware reliability table
+- coverage-gain decomposition figure
+- positive-demand hard-cell summary
+- decision-value attribution table
+- cost-by-quantile curve
+- test-window bootstrap confidence intervals
+
+Current evidence after this export:
+- zero-boundary rescue explains almost all Stage 2 coverage gain
+- positive-demand hard cells remain localized, mainly H1 target-hour cells
+- decision-value gain is almost entirely attributable to cost-aligned quantile choice
+- conformal calibration is consistent but tiny as a decision-cost refiner
+
+This strengthens the current recommendation:
+- do not start broad Stage 3 by default
+- move next toward paper-table/figure polishing
+- consider only a narrow H1 positive-demand localized calibration experiment if the paper needs an additional targeted reliability result

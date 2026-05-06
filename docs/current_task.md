@@ -19,6 +19,8 @@ This file is the short operational handoff for the next work session.
 - On `2026-05-05`, Stage 4 decision-first evaluation was implemented, tested, and run on Lenovo. See `docs/journal_stage4_decision_eval.md`.
 - Stage 4 result: using cost-ratio-aligned raw target quantiles gives large expected-cost gains over median decisions under asymmetric costs; direct one-sided conformal calibration adds only tiny extra gains.
 - The agreed paper direction is now boundary-aware reliability diagnostics plus decision-value attribution, not broad stratified calibration as the default main contribution.
+- On `2026-05-06`, Stage 2.75/4.5 paper evidence assets were exported on Lenovo. See `docs/journal_paper_assets.md`.
+- Paper-assets result: zero-boundary rescue explains nearly all Stage 2 coverage gain, while bootstrap decision attribution confirms that cost-aligned quantile choice accounts for almost all decision-value gain.
 
 ## Immediate Working Priorities
 - Keep forecasting work as the main focus for the conference submission.
@@ -35,6 +37,7 @@ This file is the short operational handoff for the next work session.
 - Prioritize decision-oriented evaluation before treating broad stratified calibration as central.
 - Treat the completed Stage 4 decision result as the next major decision checkpoint before any Stage 3 work.
 - Use `docs/journal_paper_direction.md` and `docs/journal_stage4_decision_eval.md` as the narrative and execution references for the next journal step.
+- Use `docs/journal_paper_assets.md` and `journal_results/shenzhen_multihorizon/paper_assets/` as the current paper-facing evidence package.
 
 ## For The Next Codex Session
 - Read `docs/project_goal.md`, `docs/experiment_status.md`, and `docs/windows_gpu_runbook.md` first.
@@ -53,7 +56,7 @@ This file is the short operational handoff for the next work session.
 - Diagnostic analysis on raw/global/horizon-wise outputs has been completed for the Stage 1B warm-start result.
 - The next concrete journal task is to review the Stage 4 decision outputs and decide the paper direction.
 - The next concrete journal tasks are:
-  - formalize the boundary-aware reliability decomposition into paper-facing tables and figures
-  - formalize decision-value attribution and add bootstrap confidence intervals
+  - review and polish the paper-facing tables and figures in `journal_results/shenzhen_multihorizon/paper_assets/`
+  - optionally add day-level or station-day bootstrap if date indices are exported
   - only then decide whether to run a narrowly scoped Stage 3 localized reliability experiment for H1 positive-demand hard cells
 - Keep conference-facing and journal-facing outputs clearly separated.

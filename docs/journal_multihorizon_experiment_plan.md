@@ -709,3 +709,20 @@ The immediate next checkpoint should be:
 - bootstrap confidence intervals for the main cost and attribution claims
 
 Only after these are complete should the branch decide whether a narrow localized Stage 3 experiment is still worth the extra complexity.
+
+## Immediate Next Step Update: 2026-05-06
+The immediate checkpoint above has now been executed on Lenovo.
+
+Generated evidence package:
+- `docs/journal_paper_assets.md`
+- `journal_results/shenzhen_multihorizon/paper_assets/`
+
+Result:
+- boundary-aware reliability decomposition supports the zero-boundary rescue interpretation
+- decision-value attribution with 300 test-window bootstrap samples supports the quantile-choice-dominance interpretation
+- broad Stage 3 remains low priority and should not be started automatically
+
+Next recommended work:
+- polish paper-facing tables and figures
+- optionally add date-index export so day-level or station-day bootstrap can replace the current test-window bootstrap
+- decide later whether a narrow H1 positive-demand localized calibration experiment is worth the extra implementation cost
