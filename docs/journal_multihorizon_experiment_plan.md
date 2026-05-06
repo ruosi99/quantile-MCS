@@ -16,8 +16,8 @@ The plan is staged so that we first establish a correct and reproducible multi-h
 ## Overall Goal
 Build a paper-ready Shenzhen experiment stack that can support the following claims:
 1. the current method extends from single-step to direct multi-horizon forecasting
-2. horizon-aware and stratified calibration improve reliability over global calibration
-3. the calibrated forecasts produce more useful downstream decisions under asymmetric costs
+2. marginal coverage can be misleading for zero-inflated, nonnegative EV charging demand unless it is decomposed into boundary-sensitive reliability diagnostics
+3. the main operational value of probabilistic forecasting comes from cost-aligned quantile selection, while calibration mainly acts as a lightweight reliability safeguard
 
 ## Recommended Execution Order
 1. Dataset and split audit
@@ -26,8 +26,9 @@ Build a paper-ready Shenzhen experiment stack that can support the following cla
 4. Global and horizon-wise calibration
 5. Diagnostic gate on conditional reliability and boundary effects
 6. Decision-oriented one-sided calibration and decision evaluation
-7. Conditional stratified calibration only if diagnostics justify it
-8. Robustness, ablations, and final figure/table packaging
+7. Boundary-aware reliability decomposition and decision-value attribution with confidence intervals
+8. Conditional localized calibration only if diagnostics and decision evidence justify it
+9. Ablations, light probabilistic baseline defense, optional replication, and final figure/table packaging
 
 ## Stage 0: Pre-Implementation Audit And Infrastructure
 
@@ -181,6 +182,8 @@ Implication:
   station/time subgroups
 - if it does not improve localized worst-cell reliability without unacceptable width inflation,
   it should be reported as exploratory rather than central
+- the paper narrative should move away from "stratified calibration as the main fix" and toward
+  "boundary-aware reliability diagnosis plus decision-value attribution"
 
 ## Stage 2.5 / Stage 4.0: Diagnostic Gate
 
@@ -272,7 +275,55 @@ Decision:
 - Stage 3 is still defensible only as a localized reliability experiment for H1 positive-demand or hard hour-by-horizon cells
 - decision-oriented evaluation should be treated as the next paper-significant direction before broad stratified calibration becomes central
 
-## Stage 3: Conditional Stratified Conformal Calibration
+## Stage 2.75: Boundary-Aware Reliability Decomposition
+
+### Purpose
+Turn the "coverage illusion" interpretation into formal experimental evidence rather than leaving it as a post-hoc explanation.
+
+### Experiment B1: Boundary-Aware Reliability Table
+- Purpose: quantify how marginal coverage differs across zero-demand, positive-demand, and tail-demand subsets
+- Required subsets:
+  - all samples
+  - zero-demand
+  - positive-demand
+  - low positive-demand
+  - top 10 percent demand
+  - top 5 percent demand
+- Required outputs by method and horizon:
+  - `PICP_all`
+  - `PICP_zero`
+  - `PICP_positive`
+  - `PICP_top10`
+  - `ACE_positive`
+  - `MPIW_positive`
+  - `WIS_positive`
+  - `ZBR_share`
+- Scientific purpose:
+  - quantify whether marginal coverage is overstating reliability in positive-demand regimes
+
+### Experiment B2: Coverage-Gain Decomposition Figure
+- Purpose: separate raw-to-calibrated coverage gains into zero-boundary rescue, positive-demand rescue, and residual effects
+- Required outputs:
+  - horizon-wise stacked decomposition figure
+  - supporting decomposition CSV
+- Scientific purpose:
+  - provide a paper-facing visual explanation of why global CQR can look very strong in aggregate
+
+### Experiment B3: Positive-Demand Hard-Cell Figure
+- Purpose: make the remaining localized failure modes visible after Stage 2
+- Required outputs:
+  - positive-demand hour-by-horizon heatmap
+  - worst-cell summary table
+- Scientific purpose:
+  - justify any later localized calibration experiment as targeted rather than broad
+
+### Boundary-Aware Reliability Success Rule
+This block strongly supports the new paper narrative if:
+- `PICP_zero - PICP_positive` is clearly large on one or more main horizons
+- `ZBR_share` is high enough to explain a substantial fraction of the Stage 2 gain
+- positive-demand hard cells remain visible after global or horizon-wise calibration
+
+## Stage 3: Conditional Localized Calibration
 
 ### Experiment 3.1: Station Archetype Construction
 - Purpose: build cheap and reproducible station archetypes from summary features
@@ -295,10 +346,11 @@ Decision:
   - gives the stratified calibration a concrete operational definition
 
 ### Experiment 3.2: Stratified Calibration With Fallback
-- Purpose: if Stage 2.5 shows a real conditional reliability gap, test whether hierarchical stratified calibration can improve localized reliability
+- Purpose: if diagnostics show a real localized reliability gap, test whether a narrow hierarchical calibration design can improve the hard cells without becoming the paper's default main method
 - Default main design:
   - target-hour bins: `00-05`, `06-10`, `11-15`, `16-20`, `21-23`
-  - archetypes: start with `K=3`
+  - start with `H1` and positive-demand samples only
+  - archetypes: start with `K=2` or `K=3`
 - Hierarchical fallback order:
   - `h × timebin × archetype`
   - fallback to `h × timebin`
@@ -316,9 +368,9 @@ Decision:
   - evaluation run: 0.5 to 1 day
 - Success condition:
   - stratified calibration does not collapse because of sparse cells
-  - compared with global and horizon-wise baselines, it improves positive-demand ACE, worst-cell ACE, tail-demand PICP, or hard-cell under-coverage without unacceptable interval inflation
+  - compared with global and horizon-wise baselines, it improves worst-cell ACE, positive-demand PICP, hard-cell under-coverage, or hard-cell decision cost without unacceptable interval inflation
 - Scientific purpose:
-  - this is only a core journal experiment if the Stage 2.5 gate shows that simpler calibration is still insufficient
+  - this is a conditional localized experiment, not the default journal main method
 
 ### Experiment 3.3: Stratification Granularity Ablation
 - Purpose: test how sensitive results are to bucket design
@@ -380,6 +432,72 @@ Decision:
   - at least one calibrated strategy clearly improves cost or regret relative to median and raw target-quantile choices
 - Scientific purpose:
   - this is now a main experiment, not a late optional extension
+
+### Stage 4 Evidence Update: 2026-05-05
+The full warm-start Stage 4 run changed the value story further.
+
+At asymmetric cost ratios, the dominant cost reduction comes from choosing the correct
+target quantile rather than from one-sided conformal calibration itself.
+
+Examples:
+- `3:1`: median `0.8680` -> raw target quantile `0.7209`
+- `5:1`: median `1.3121` -> raw target quantile `0.9237`
+- `9:1`: median `2.2001` -> raw target quantile `1.2230`
+- `19:1`: median `4.4202` -> raw target quantile `1.7138`
+
+The extra gain from one-sided calibration is real but very small:
+- `19:1`: raw target `1.71376` -> horizon one-sided `1.71264`
+
+Implication:
+- quantile selection is the main value generator
+- calibration should be described as a reliability safeguard and secondary cost refiner
+- broad Stage 3 calibration is not justified as a main decision-cost method by default
+
+## Stage 4.5: Decision-Value Attribution
+
+### Purpose
+Turn the Stage 4 cost tables into a formal value-attribution argument suitable for the paper's central contribution.
+
+### Experiment D1: Decision Attribution Table
+- Purpose: separate the value of choosing the correct quantile from the value of calibration
+- Required methods:
+  - `median`
+  - `raw_target_quantile`
+  - `global_cqr`
+  - `horizon_cqr`
+  - `oracle_decision`
+- Required outputs:
+  - expected cost
+  - regret versus oracle
+  - shortage cost
+  - overage cost
+  - shortage frequency
+  - quantile-choice share
+  - calibration share
+- Scientific purpose:
+  - quantify where operational value actually comes from
+
+### Experiment D2: Cost-Curve Figure By Quantile
+- Purpose: show how decision cost changes as the selected quantile changes under different cost ratios
+- Required outputs:
+  - cost-by-quantile curves
+  - one curve per cost ratio
+- Scientific purpose:
+  - make cost-aligned quantile selection visually intuitive
+
+### Experiment D3: Bootstrap Confidence Intervals
+- Purpose: show that the value-attribution conclusions are stable rather than accidental
+- Recommended resampling:
+  - day-level bootstrap
+  - or station-day cluster bootstrap
+- Required outputs:
+  - 95 percent confidence intervals for expected cost
+  - 95 percent confidence intervals for cost reduction versus median
+  - 95 percent confidence intervals for quantile-choice share
+  - 95 percent confidence intervals for calibration share
+  - 95 percent confidence intervals for `PICP_positive` and `ZBR_share` where relevant
+- Scientific purpose:
+  - strengthen the journal-level rigor of the main claims
 
 ## Stage 5: Robustness, Diagnostics, And Conditional Extensions
 
@@ -479,6 +597,25 @@ Decision:
 - Scientific purpose:
   - addresses a known ablation weakness in the conference line and strengthens the journal story
 
+### Experiment 5.8: Light Probabilistic Baseline Defense
+- Purpose: show that the reliability and value-attribution findings are not purely an artifact of one model
+- Recommended baseline priority:
+  - historical conditional quantile baseline
+  - or MC Dropout variant
+  - or small ensemble if computationally acceptable
+- Required outputs:
+  - at least one light probabilistic baseline compared on reliability and decision metrics
+- Scientific purpose:
+  - defend against the critique that the main findings are model-specific
+
+### Experiment 5.9: Optional Light Replication
+- Purpose: if time and data allow, verify whether the boundary-rescue phenomenon and quantile-choice dominance also appear outside Shenzhen
+- Scope:
+  - light replication only
+  - do not turn this paper into a full cross-city transfer study
+- Scientific purpose:
+  - improve confidence without overlapping with the separate allocation-oriented manuscript
+
 ## Stage 7: Final Packaging
 
 ### Experiment 7.1: Final Table and Figure Export
@@ -527,16 +664,18 @@ Decision:
 3. horizon-wise CQR
 4. diagnostic gate with zero/positive-demand and hour-by-horizon decomposition
 5. one decision-cost experiment
+6. decision-value attribution with confidence intervals
 
 ### Conditional After Stage 2
 1. stratified calibration with hierarchical fallback, only if framed as a localized reliability or worst-cell improvement experiment
 2. adaptive calibration ablations, only if they improve worst-cell ACE or localized under-coverage without unacceptable width inflation
 
 ### Strongly Recommended
-1. granularity ablation
+1. boundary-aware reliability decomposition
 2. calibration-set size ablation
 3. worst-cell reliability summary
 4. probabilistic-component ablation
+5. light probabilistic baseline defense
 
 ### Nice-To-Have
 1. extra scoring rules beyond the main set
@@ -548,8 +687,8 @@ If stratified or hierarchical calibration does not clearly improve worst-cell AC
 
 The fallback paper framing should become:
 - direct multi-horizon forecasting
-- horizon-wise calibration
-- decision-oriented quantile calibration
+- boundary-aware reliability diagnostics
+- decision-oriented quantile calibration and value attribution
 
 In that case, stratified calibration should be reported as an exploratory extension rather than the central contribution.
 
@@ -559,16 +698,14 @@ The Shenzhen-only phase can be considered successful when:
 2. horizon-wise metrics are complete
 3. at least one calibration strategy clearly improves reliability over raw intervals
 4. the decision-oriented evaluation shows practical value
-5. the stratified method is either validated on worst-cell reliability or honestly narrowed with evidence
+5. the localized calibration idea is either validated on hard-cell reliability or honestly narrowed with evidence
 
 ## Recommended Immediate Next Step
 Do not implement stratified calibration next by default.
 
-The immediate next checkpoint should be the Diagnostic Gate:
-- zero versus positive-demand decomposition
-- boundary-rescue decomposition
-- hour-by-horizon diagnostics for all samples and positive-demand-only samples
-- demand-bin diagnostics
-- reliability curves by horizon
+The immediate next checkpoint should be:
+- formal boundary-aware reliability decomposition
+- decision-value attribution tables and figures
+- bootstrap confidence intervals for the main cost and attribution claims
 
-Only after this gate should Stage 3 be confirmed as a main path or narrowed to an exploratory extension.
+Only after these are complete should the branch decide whether a narrow localized Stage 3 experiment is still worth the extra complexity.
