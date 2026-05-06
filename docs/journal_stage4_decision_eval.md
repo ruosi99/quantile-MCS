@@ -292,3 +292,67 @@ Suggested new files:
 - `tests/test_journal_stage4_decision.py`
 
 These are recommendations only, but using this naming scheme will keep the journal pipeline easy to follow.
+
+## Execution Update: 2026-05-05
+Stage 4 was implemented and run on Lenovo.
+
+Added files:
+- `scripts/journal/evaluate_stage4_decision.py`
+- `scripts/journal/run_stage4_decision_warmstart.sh`
+- `tests/test_journal_stage4_decision.py`
+
+Verification:
+- `conda run -n py12 python -m pytest tests/test_journal_stage4_decision.py tests/test_journal_stage2_cqr.py -q -p no:cacheprovider`
+- result: `9 passed`, `1 warning`
+
+Implementation choice:
+- direct one-sided conformal target-quantile calibration was implemented
+- score definition: `label - raw_target_quantile`
+- calibrated decision rule: `max(raw_target_quantile + s_hat, 0)`
+- global and horizon-wise variants differ by whether the one-sided threshold pools all horizons or is estimated per horizon
+
+Full Lenovo command used:
+
+```powershell
+conda run -n py12 python scripts/journal/evaluate_stage4_decision.py --stage1-output-dir journal_results/shenzhen_multihorizon/warmstart_raw --stage2-output-dir journal_results/shenzhen_multihorizon/stage2_cqr/warmstart_raw --output-dir journal_results/shenzhen_multihorizon/stage4_decision/warmstart_raw --use-cuda True --machine Lenovo
+```
+
+Note:
+- `bash scripts/journal/run_stage4_decision_warmstart.sh` failed inside the Codex Windows shell with a Git Bash/MSYS signal-pipe error, not a Python or experiment-code error
+- the equivalent direct Python command above completed successfully
+
+Output directory:
+
+```text
+journal_results/shenzhen_multihorizon/stage4_decision/warmstart_raw/
+```
+
+Generated outputs:
+- `decision_summary_by_method_and_cost_ratio.csv`
+- `decision_metrics_by_horizon.csv`
+- `decision_regret_vs_oracle.csv`
+- `decision_eval_metadata.json`
+- `decision_one_sided_thresholds.csv`
+- `decision_cost_by_horizon.png`
+- `decision_regret_by_cost_ratio.png`
+
+Main decision-cost summary:
+
+| Cost ratio | Median cost | Raw target cost | Global one-sided cost | Horizon one-sided cost | Raw target gain vs median | Horizon gain vs raw |
+|---|---:|---:|---:|---:|---:|---:|
+| `1:1` | 0.424015 | 0.424015 | 0.424013 | 0.424009 | 0.000% | 0.001% |
+| `3:1` | 0.868041 | 0.720889 | 0.720804 | 0.720752 | 16.952% | 0.019% |
+| `5:1` | 1.312067 | 0.923726 | 0.923544 | 0.923485 | 29.598% | 0.026% |
+| `9:1` | 2.200118 | 1.222980 | 1.222784 | 1.222530 | 44.413% | 0.037% |
+| `19:1` | 4.420247 | 1.713762 | 1.713513 | 1.712642 | 61.229% | 0.065% |
+
+Interpretation:
+- the large decision improvement comes from using the cost-ratio-aligned target quantile instead of the median
+- one-sided conformal calibration gives only tiny additional cost reductions over the raw target quantile
+- all one-sided thresholds are very small and negative, meaning the raw target quantiles are already slightly conservative on the calibration split
+- horizon-wise one-sided calibration is consistently but only marginally better than global one-sided calibration
+
+Paper implication:
+- Stage 4 supports a decision-first story, especially for asymmetric cost ratios
+- the current evidence does not support making broad Stage 3 stratified calibration central for decision-cost improvement
+- if Stage 3 is pursued, it should remain a narrow localized reliability experiment for H1 positive-demand hard cells, not a main decision-cost method by default

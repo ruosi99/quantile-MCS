@@ -16,6 +16,8 @@ This file is the short operational handoff for the next work session.
 - On `2026-05-05`, the Stage 2.5 Diagnostic Gate was implemented, tested, and run on Lenovo. See `docs/journal_stage2_diagnostic_gate.md`.
 - Diagnostic Gate result: Stage 2 global CQR's marginal 90 percent coverage gain is mostly a zero-demand boundary-rescue effect, while localized H1 positive-demand hour cells still under-cover.
 - Stage 3 should not be started automatically. If pursued, it should be framed as a localized reliability experiment rather than a required fix for marginal 90 percent coverage.
+- On `2026-05-05`, Stage 4 decision-first evaluation was implemented, tested, and run on Lenovo. See `docs/journal_stage4_decision_eval.md`.
+- Stage 4 result: using cost-ratio-aligned raw target quantiles gives large expected-cost gains over median decisions under asymmetric costs; direct one-sided conformal calibration adds only tiny extra gains.
 
 ## Immediate Working Priorities
 - Keep forecasting work as the main focus for the conference submission.
@@ -30,7 +32,7 @@ This file is the short operational handoff for the next work session.
 - Reframe adaptive/stratified calibration as a localized reliability or worst-cell ACE experiment, not as a required fix for marginal 90 percent coverage.
 - Use the completed diagnostic gate before committing to Stage 3 as a main contribution.
 - Prioritize decision-oriented evaluation before treating broad stratified calibration as central.
-- Use `docs/journal_stage4_decision_eval.md` as the execution spec for the next Lenovo experiment.
+- Treat the completed Stage 4 decision result as the next major decision checkpoint before any Stage 3 work.
 
 ## For The Next Codex Session
 - Read `docs/project_goal.md`, `docs/experiment_status.md`, and `docs/windows_gpu_runbook.md` first.
@@ -47,6 +49,6 @@ This file is the short operational handoff for the next work session.
 - Stage 2 warm-start CQR has been run with `bash scripts/journal/run_stage2_cqr_warmstart.sh`.
 - `bash scripts/journal/run_stage2_cqr_raw.sh` remains optional because Stage 1A versus Stage 1B is unlikely to become a paper-facing ablation.
 - Diagnostic analysis on raw/global/horizon-wise outputs has been completed for the Stage 1B warm-start result.
-- The next concrete journal task is to implement and run the Stage 4 decision-first evaluation on the Stage 1B warm-start and Stage 2 warm-start outputs.
+- The next concrete journal task is to review the Stage 4 decision outputs and decide the paper direction.
 - Only after the Stage 4 decision result is reviewed should the branch decide whether to run a narrowly scoped Stage 3 localized reliability experiment for H1 positive-demand hard cells.
 - Keep conference-facing and journal-facing outputs clearly separated.
