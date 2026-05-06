@@ -38,6 +38,7 @@ This file is the short operational handoff for the next work session.
 - Treat the completed Stage 4 decision result as the next major decision checkpoint before any Stage 3 work.
 - Use `docs/journal_paper_direction.md` and `docs/journal_stage4_decision_eval.md` as the narrative and execution references for the next journal step.
 - Use `docs/journal_paper_assets.md` and `journal_results/shenzhen_multihorizon/paper_assets/` as the current paper-facing evidence package.
+- The next journal reinforcement package should emphasize station-level zero-inflation sensitivity, deployment strategy comparison, and a paper-facing deployment diagnostic flowchart rather than reopening broad Stage 3.
 
 ## For The Next Codex Session
 - Read `docs/project_goal.md`, `docs/experiment_status.md`, and `docs/windows_gpu_runbook.md` first.
@@ -57,6 +58,9 @@ This file is the short operational handoff for the next work session.
 - The next concrete journal task is to review the Stage 4 decision outputs and decide the paper direction.
 - The next concrete journal tasks are:
   - review and polish the paper-facing tables and figures in `journal_results/shenzhen_multihorizon/paper_assets/`
+  - add station-level zero-inflation sensitivity to test whether ZBR dominance and quantile-choice dominance persist across different station sparsity regimes
+  - add deployment strategy comparison so the decision-value result becomes a direct practitioner-facing cost comparison
   - optionally add day-level or station-day bootstrap if date indices are exported
+  - package a deployment diagnostic flowchart once the above reinforcement results are stable
   - only then decide whether to run a narrowly scoped Stage 3 localized reliability experiment for H1 positive-demand hard cells
 - Keep conference-facing and journal-facing outputs clearly separated.

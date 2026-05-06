@@ -499,6 +499,22 @@ Turn the Stage 4 cost tables into a formal value-attribution argument suitable f
 - Scientific purpose:
   - strengthen the journal-level rigor of the main claims
 
+### Experiment D4: Deployment Strategy Comparison
+- Purpose: translate the value-attribution result into an operational deployment comparison that is easy for reviewers and practitioners to interpret
+- Required strategies:
+  - `median_decision`
+  - `symmetric_interval_upper_bound`
+  - `raw_cost_aligned_quantile`
+  - `one_sided_refined_cost_aligned_quantile`
+- Required outputs:
+  - expected cost by horizon and cost ratio
+  - cost reduction versus `median_decision`
+  - cost reduction versus `symmetric_interval_upper_bound`
+  - optional grouped bar figure for deployment cost comparison
+- Scientific purpose:
+  - show that probability intervals and calibration alone are not enough if the deployed decision rule is not aligned with the operating cost ratio
+  - convert the abstract quantile-choice share into a practitioner-facing statement about avoidable deployment cost
+
 ## Stage 5: Robustness, Diagnostics, And Conditional Extensions
 
 ### Experiment 5.1: Hour-by-Horizon Coverage Heatmap
@@ -616,6 +632,22 @@ Turn the Stage 4 cost tables into a formal value-attribution argument suitable f
 - Scientific purpose:
   - improve confidence without overlapping with the separate allocation-oriented manuscript
 
+### Experiment 5.10: Station-Level Zero-Inflation Sensitivity
+- Purpose: test whether zero-boundary rescue dominance and decision-value attribution remain strong across station groups with different sparsity levels
+- Recommended grouping:
+  - sort stations by station-level zero ratio
+  - build 3 to 4 coarse groups with adequate sample counts, preferably quantile-based groups unless domain cutoffs are clearly justified
+- Required outputs:
+  - number of stations per group
+  - average zero ratio per group
+  - `ZBR_share`
+  - `PICP_zero - PICP_positive`
+  - `quantile_choice_share`
+  - optional scatter plot of station zero ratio versus `ZBR_share` or `quantile_choice_share`
+- Scientific purpose:
+  - show whether the paper's main findings remain strong even when zero inflation is not extreme
+  - prevent reviewers from dismissing the boundary-aware result as a trivial artifact of an overly sparse dataset
+
 ## Stage 7: Final Packaging
 
 ### Experiment 7.1: Final Table and Figure Export
@@ -631,6 +663,20 @@ Turn the Stage 4 cost tables into a formal value-attribution argument suitable f
   - polishing: 1 day
 - Success condition:
   - tables and figures can be inserted into the paper without manual reconstruction
+
+### Experiment 7.2: Deployment Diagnostic Flowchart
+- Purpose: convert the paper's main findings into a prescriptive deployment protocol
+- Required flow steps:
+  - train the multi-horizon probabilistic forecaster
+  - run the boundary-aware reliability diagnostic
+  - choose the cost-aligned target quantile from the operating cost ratio
+  - apply targeted calibration only if positive-demand diagnostics reveal hard cells
+- Required outputs:
+  - one paper-facing flowchart figure
+  - one short text block with empirically motivated threshold suggestions
+- Scientific purpose:
+  - make the practical contribution explicit
+  - frame calibration as diagnostics-driven and conditional rather than automatic
 
 ## Suggested Total Timeline
 
@@ -676,11 +722,14 @@ Turn the Stage 4 cost tables into a formal value-attribution argument suitable f
 3. worst-cell reliability summary
 4. probabilistic-component ablation
 5. light probabilistic baseline defense
+6. station-level zero-inflation sensitivity
+7. deployment strategy comparison
 
 ### Nice-To-Have
 1. extra scoring rules beyond the main set
 2. expanded cluster sensitivity study
 3. five-city calibration-only transfer after Shenzhen is stable
+4. deployment diagnostic flowchart, if not already included during final paper packaging
 
 ## Pivot Rule
 If stratified or hierarchical calibration does not clearly improve worst-cell ACE or under-coverage relative to horizon-wise CQR, or if it requires unacceptable interval-width inflation, then the paper should pivot.
@@ -725,4 +774,7 @@ Result:
 Next recommended work:
 - polish paper-facing tables and figures
 - optionally add date-index export so day-level or station-day bootstrap can replace the current test-window bootstrap
+- add station-level zero-inflation sensitivity as the next robustness check
+- add deployment strategy comparison so the decision-value claim becomes more deployment-facing
+- package a deployment diagnostic flowchart during paper writing and figure polishing
 - decide later whether a narrow H1 positive-demand localized calibration experiment is worth the extra implementation cost

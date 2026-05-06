@@ -122,3 +122,37 @@ This strengthens the current recommendation:
 - do not start broad Stage 3 by default
 - move next toward paper-table/figure polishing
 - consider only a narrow H1 positive-demand localized calibration experiment if the paper needs an additional targeted reliability result
+
+## Reinforcement Package After The First Evidence Export
+The next high-yield additions should reinforce the current narrative rather than reopen the
+full Stage 3 direction.
+
+### Reinforcement 1: Station-Level Zero-Inflation Sensitivity
+- group stations by station-level zero ratio
+- report `ZBR_share`, positive-demand coverage gap, and `quantile_choice_share` by group
+- use this to show whether the boundary-aware and decision-attribution findings remain strong
+  even when zero inflation is not extreme
+
+### Reinforcement 2: Deployment Strategy Comparison
+- compare:
+  - median decision
+  - symmetric interval upper-bound decision
+  - raw cost-aligned quantile decision
+  - one-sided refined cost-aligned quantile decision
+- this turns the attribution result into a direct deployment recommendation and shows that
+  calibration alone is not enough if the deployed decision rule ignores the cost ratio
+
+### Reinforcement 3: Deployment Diagnostic Flowchart
+- convert the paper's conclusions into a simple four-step deployment protocol:
+  - train the forecaster
+  - run boundary-aware diagnostics
+  - choose the cost-aligned quantile
+  - use targeted calibration only for diagnostically identified hard cells
+- this should be treated as a practical packaging contribution, not a new heavy experiment
+
+## Updated Next-Step Priority
+1. polish the current paper-facing figures and tables
+2. add station-level zero-inflation sensitivity
+3. add deployment strategy comparison
+4. optionally upgrade bootstrap to day-level or station-day if date indices are exported
+5. only then decide whether a narrow H1 positive-demand localized calibration experiment is still needed
