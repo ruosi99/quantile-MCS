@@ -177,3 +177,44 @@ Updated interpretation:
 - one-sided calibration remains a small but stable refinement
 
 The next step should be paper polish and deciding how much of the station-sparsity result belongs in the main text versus appendix.
+
+## Misspecification Gate Update: 2026-05-07
+The cost-ratio misspecification Phase 1 gate has been executed on Lenovo. See:
+
+- `docs/journal_misspecification_experiment_results.md`
+- `journal_results/shenzhen_multihorizon/misspecification/`
+
+Main result:
+- gate status: `PASSED`
+- max off-diagonal percentage regret: `206.249%`
+- largest cell: assumed `19:1`, true `1:1`
+- day-level bootstrap confirms the largest percentage-regret cells are far above the 10% gate threshold
+
+Interpretation:
+- cost-aligned quantile choice remains the main value generator
+- however, that value is sensitive to cost-ratio misspecification
+- both underestimating and overestimating the true ratio can be costly
+- overestimating asymmetry is especially damaging when the true cost structure is close to symmetric
+
+Updated paper-direction implication:
+- Phase 2 robust quantile-selection under cost-ratio uncertainty is now justified for review
+- this remains a decision-focused extension
+- it should not reopen broad Stage 3 calibration work by default
+
+## Misspecification Phase 2 Update: 2026-05-07
+Phase 2 robust quantile selection has been executed on Lenovo. See:
+
+- `docs/journal_misspecification_experiment_results.md`
+- `journal_results/shenzhen_multihorizon/misspecification/robust_strategy_comparison.csv`
+- `journal_results/shenzhen_multihorizon/misspecification/robust_strategy_comparison_by_horizon.csv`
+- `journal_results/shenzhen_multihorizon/misspecification/robust_strategy_comparison_chart.png`
+
+Main result:
+- `minimax_regret` and `expected_cost` select `5:1` in all aggregate uncertainty scenarios
+- in the wide scenario, worst-case percentage regret drops from `206.249%` under conservative `19:1` and `108.043%` under midpoint `9:1` to `49.625%` under minimax/expected `5:1`
+- medium-scenario by-horizon choices are horizon-dependent: H1/H3/H6 prefer `9:1`, while H12/H24 prefer `5:1`
+
+Updated interpretation:
+- cost-ratio uncertainty is not just a diagnostic issue; it changes the deployment recommendation
+- a robust mid-high quantile such as `5:1` can substantially reduce worst-case exposure when the true cost ratio is uncertain
+- this strengthens a decision-robustness subsection without requiring broad Stage 3 calibration

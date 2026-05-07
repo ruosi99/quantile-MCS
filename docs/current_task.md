@@ -23,6 +23,9 @@ This file is the short operational handoff for the next work session.
 - Paper-assets result: zero-boundary rescue explains nearly all Stage 2 coverage gain, while bootstrap decision attribution confirms that cost-aligned quantile choice accounts for almost all decision-value gain.
 - On `2026-05-06`, the reinforcement package was implemented, tested, and run on Lenovo. See `docs/journal_reinforcement_experiments.md`.
 - Reinforcement result: station-level sparsity explains where zero-boundary rescue matters; deployment strategy comparison confirms that cost-aligned quantile decisions dominate symmetric interval-upper-bound deployment except when the cost ratio already matches the upper quantile.
+- On `2026-05-07`, the cost-ratio misspecification Phase 1 gate was implemented, tested, and run on Lenovo. See `docs/journal_misspecification_experiment_results.md`.
+- Misspecification Phase 1 result: gate `PASSED`; max off-diagonal percentage regret is `206.249%`, so cost-ratio uncertainty is operationally material and justifies reviewing Phase 2 robust quantile-selection rules before any Stage 3 work.
+- On `2026-05-07`, misspecification Phase 2 robust quantile selection was implemented, tested, and run on Lenovo. It found `minimax_regret`/`expected_cost` select `5:1` in all aggregate scenarios and sharply reduce wide-scenario worst-case percentage regret versus midpoint/conservative heuristics.
 
 ## Immediate Working Priorities
 - Keep forecasting work as the main focus for the conference submission.
@@ -42,6 +45,8 @@ This file is the short operational handoff for the next work session.
 - Use `docs/journal_paper_assets.md` and `journal_results/shenzhen_multihorizon/paper_assets/` as the current paper-facing evidence package.
 - The next journal reinforcement package should emphasize station-level zero-inflation sensitivity, deployment strategy comparison, and a paper-facing deployment diagnostic flowchart rather than reopening broad Stage 3.
 - Use `docs/journal_reinforcement_experiments.md` and `journal_results/shenzhen_multihorizon/reinforcement/` as the current robustness and deployment-evidence package.
+- Use `docs/journal_misspecification_experiment_results.md` and `journal_results/shenzhen_multihorizon/misspecification/` as the current cost-ratio uncertainty gate result.
+- Do not start Phase 3 automatically. Treat Phase 3 as optional only if the paper needs a time-varying cost-profile demonstration.
 
 ## For The Next Codex Session
 - Read `docs/project_goal.md`, `docs/experiment_status.md`, and `docs/windows_gpu_runbook.md` first.
