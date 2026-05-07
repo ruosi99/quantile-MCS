@@ -21,6 +21,8 @@ This file is the short operational handoff for the next work session.
 - The agreed paper direction is now boundary-aware reliability diagnostics plus decision-value attribution, not broad stratified calibration as the default main contribution.
 - On `2026-05-06`, Stage 2.75/4.5 paper evidence assets were exported on Lenovo. See `docs/journal_paper_assets.md`.
 - Paper-assets result: zero-boundary rescue explains nearly all Stage 2 coverage gain, while bootstrap decision attribution confirms that cost-aligned quantile choice accounts for almost all decision-value gain.
+- On `2026-05-06`, the reinforcement package was implemented, tested, and run on Lenovo. See `docs/journal_reinforcement_experiments.md`.
+- Reinforcement result: station-level sparsity explains where zero-boundary rescue matters; deployment strategy comparison confirms that cost-aligned quantile decisions dominate symmetric interval-upper-bound deployment except when the cost ratio already matches the upper quantile.
 
 ## Immediate Working Priorities
 - Keep forecasting work as the main focus for the conference submission.
@@ -39,6 +41,7 @@ This file is the short operational handoff for the next work session.
 - Use `docs/journal_paper_direction.md` and `docs/journal_stage4_decision_eval.md` as the narrative and execution references for the next journal step.
 - Use `docs/journal_paper_assets.md` and `journal_results/shenzhen_multihorizon/paper_assets/` as the current paper-facing evidence package.
 - The next journal reinforcement package should emphasize station-level zero-inflation sensitivity, deployment strategy comparison, and a paper-facing deployment diagnostic flowchart rather than reopening broad Stage 3.
+- Use `docs/journal_reinforcement_experiments.md` and `journal_results/shenzhen_multihorizon/reinforcement/` as the current robustness and deployment-evidence package.
 
 ## For The Next Codex Session
 - Read `docs/project_goal.md`, `docs/experiment_status.md`, and `docs/windows_gpu_runbook.md` first.
@@ -62,5 +65,6 @@ This file is the short operational handoff for the next work session.
   - add deployment strategy comparison so the decision-value result becomes a direct practitioner-facing cost comparison
   - optionally add day-level or station-day bootstrap if date indices are exported
   - package a deployment diagnostic flowchart once the above reinforcement results are stable
+  - the above reinforcement tasks have now been completed at station-level and day-bootstrap level; remaining work is paper-facing polish
   - only then decide whether to run a narrowly scoped Stage 3 localized reliability experiment for H1 positive-demand hard cells
 - Keep conference-facing and journal-facing outputs clearly separated.

@@ -778,3 +778,21 @@ Next recommended work:
 - add deployment strategy comparison so the decision-value claim becomes more deployment-facing
 - package a deployment diagnostic flowchart during paper writing and figure polishing
 - decide later whether a narrow H1 positive-demand localized calibration experiment is worth the extra implementation cost
+
+## Reinforcement Update: 2026-05-06
+The station-level zero-inflation sensitivity, deployment strategy comparison, day-level bootstrap, and deployment diagnostic flowchart have now been executed.
+
+Generated package:
+- `docs/journal_reinforcement_experiments.md`
+- `journal_results/shenzhen_multihorizon/reinforcement/`
+
+Result:
+- station-level sparsity explains where zero-boundary rescue dominates
+- cost-aligned quantile deployment is better than symmetric interval-upper-bound deployment for most cost ratios
+- day-level bootstrap over 36 target dates supports the decision-value attribution result
+- broad Stage 3 remains unnecessary by default
+
+Next recommended work:
+- polish final tables and figures
+- decide whether the high-zero rare-positive station result belongs in the main text or appendix
+- keep localized Stage 3 as optional only

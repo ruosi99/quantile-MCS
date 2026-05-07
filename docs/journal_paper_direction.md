@@ -156,3 +156,24 @@ full Stage 3 direction.
 3. add deployment strategy comparison
 4. optionally upgrade bootstrap to day-level or station-day if date indices are exported
 5. only then decide whether a narrow H1 positive-demand localized calibration experiment is still needed
+
+## Reinforcement Update: 2026-05-06
+The reinforcement package has been executed on Lenovo. See:
+
+- `docs/journal_reinforcement_experiments.md`
+- `journal_results/shenzhen_multihorizon/reinforcement/`
+
+Main additions:
+- station-level zero-inflation sensitivity
+- deployment strategy comparison
+- day-level bootstrap confidence intervals using recovered target dates
+- deployment diagnostic flowchart
+
+Updated interpretation:
+- zero-boundary rescue is station-sparsity-sensitive, not a claim that all stations are dominated by zeros
+- low-zero stations already have strong positive-demand coverage
+- high-zero stations show rare positive-demand undercoverage, but their absolute decision costs are small
+- cost-aligned quantile deployment beats symmetric upper-bound deployment for most cost ratios
+- one-sided calibration remains a small but stable refinement
+
+The next step should be paper polish and deciding how much of the station-sparsity result belongs in the main text versus appendix.
