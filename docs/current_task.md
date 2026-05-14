@@ -23,6 +23,8 @@ This file is the short operational handoff for the next work session.
 - Paper-assets result: zero-boundary rescue explains nearly all Stage 2 coverage gain, while bootstrap decision attribution confirms that cost-aligned quantile choice accounts for almost all decision-value gain.
 - On `2026-05-06`, the reinforcement package was implemented, tested, and run on Lenovo. See `docs/journal_reinforcement_experiments.md`.
 - Reinforcement result: station-level sparsity explains where zero-boundary rescue matters; deployment strategy comparison confirms that cost-aligned quantile decisions dominate symmetric interval-upper-bound deployment except when the cost ratio already matches the upper quantile.
+- On `2026-05-14`, the CRC risk-control deployment experiment was implemented, tested, and run on Lenovo. See `docs/journal_crc_risk_control_experiment_results.md`.
+- CRC result: violation-risk CRC provides a credible service-risk deployment layer and reduces overage versus `symmetric_90_upper`; normalized-shortage CRC controls normalized shortage risk but can allow high violation rates, so it should not be interpreted as service-violation control.
 
 ## Immediate Working Priorities
 - Keep forecasting work as the main focus for the conference submission.
@@ -42,6 +44,7 @@ This file is the short operational handoff for the next work session.
 - Use `docs/journal_paper_assets.md` and `journal_results/shenzhen_multihorizon/paper_assets/` as the current paper-facing evidence package.
 - The next journal reinforcement package should emphasize station-level zero-inflation sensitivity, deployment strategy comparison, and a paper-facing deployment diagnostic flowchart rather than reopening broad Stage 3.
 - Use `docs/journal_reinforcement_experiments.md` and `journal_results/shenzhen_multihorizon/reinforcement/` as the current robustness and deployment-evidence package.
+- Use `docs/journal_crc_risk_control_experiment_results.md` and `journal_results/shenzhen_multihorizon/crc_risk_control/` as the current service-risk deployment comparison package.
 
 ## For The Next Codex Session
 - Read `docs/project_goal.md`, `docs/experiment_status.md`, and `docs/windows_gpu_runbook.md` first.

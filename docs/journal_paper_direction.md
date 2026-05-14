@@ -177,3 +177,20 @@ Updated interpretation:
 - one-sided calibration remains a small but stable refinement
 
 The next step should be paper polish and deciding how much of the station-sparsity result belongs in the main text versus appendix.
+
+## CRC Risk-Control Update: 2026-05-14
+The CRC risk-control deployment experiment has been executed on Lenovo. See:
+
+- `docs/journal_crc_risk_control_experiment_results.md`
+- `journal_results/shenzhen_multihorizon/crc_risk_control/`
+
+Main result:
+- violation-risk CRC achieves pooled empirical test violation near or below the target alphas
+- horizon CRC violation alpha `0.05` has pooled violation `0.040367` and reduces mean overage versus `symmetric_90_upper`
+- horizon CRC violation alpha `0.10` has pooled violation `0.090430` and much lower mean overage than `symmetric_90_upper`
+- normalized-shortage CRC controls normalized shortage risk but allows high violation rates, so it should be interpreted as a shortage-severity budget rather than service-violation control
+
+Updated interpretation:
+- CRC is useful as an alternative deployment layer when operators trust service-risk targets more than exact monetary cost ratios
+- CRC does not replace cost-aligned quantile deployment when the monetary cost ratio is reliable
+- this strengthens the paper's deployment story without reopening broad Stage 3 calibration
