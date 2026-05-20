@@ -25,6 +25,10 @@ This file is the short operational handoff for the next work session.
 - Reinforcement result: station-level sparsity explains where zero-boundary rescue matters; deployment strategy comparison confirms that cost-aligned quantile decisions dominate symmetric interval-upper-bound deployment except when the cost ratio already matches the upper quantile.
 - On `2026-05-14`, the CRC risk-control deployment experiment was implemented, tested, and run on Lenovo. See `docs/journal_crc_risk_control_experiment_results.md`.
 - CRC result: violation-risk CRC provides a credible service-risk deployment layer and reduces overage versus `symmetric_90_upper`; normalized-shortage CRC controls normalized shortage risk but can allow high violation rates, so it should not be interpreted as service-violation control.
+- On `2026-05-15`, the misspecification package completed its Phase 1 gate and Phase 2 robustness run on Lenovo. See `journal_results/shenzhen_multihorizon/misspecification/`.
+- Misspecification result: cost-ratio misspecification can create large regret, overestimating the ratio can be more expensive than underestimating it, and a `5:1` minimax-regret choice emerges as a robust aggregate deployment rule under uncertainty.
+- On `2026-05-16`, the CRC follow-up package was implemented, tested, and run on Lenovo. See `docs/journal_crc_followup_experiment_results.md`.
+- CRC follow-up result: safety-margin policies are usually more conservative and more costly than raw-quantile CRC, empirical and CRC-corrected selectors largely coincide on this dataset, and H1 risk control at the 5 percent target needs a stricter alpha than the nominal target alone suggests.
 
 ## Immediate Working Priorities
 - Keep forecasting work as the main focus for the conference submission.
@@ -45,6 +49,9 @@ This file is the short operational handoff for the next work session.
 - The next journal reinforcement package should emphasize station-level zero-inflation sensitivity, deployment strategy comparison, and a paper-facing deployment diagnostic flowchart rather than reopening broad Stage 3.
 - Use `docs/journal_reinforcement_experiments.md` and `journal_results/shenzhen_multihorizon/reinforcement/` as the current robustness and deployment-evidence package.
 - Use `docs/journal_crc_risk_control_experiment_results.md` and `journal_results/shenzhen_multihorizon/crc_risk_control/` as the current service-risk deployment comparison package.
+- Use `docs/journal_crc_followup_experiment_results.md` and `journal_results/shenzhen_multihorizon/crc_risk_control_followup/` as the current CRC reviewer-defense and sensitivity package.
+- Use `journal_results/shenzhen_multihorizon/misspecification/` as the current decision-robustness package.
+- Use `docs/journal_preference_mapping_experiment_plan.md` as the current execution spec for the next deployment-layer bridge experiment.
 
 ## For The Next Codex Session
 - Read `docs/project_goal.md`, `docs/experiment_status.md`, and `docs/windows_gpu_runbook.md` first.
@@ -64,10 +71,12 @@ This file is the short operational handoff for the next work session.
 - The next concrete journal task is to review the Stage 4 decision outputs and decide the paper direction.
 - The next concrete journal tasks are:
   - review and polish the paper-facing tables and figures in `journal_results/shenzhen_multihorizon/paper_assets/`
-  - add station-level zero-inflation sensitivity to test whether ZBR dominance and quantile-choice dominance persist across different station sparsity regimes
-  - add deployment strategy comparison so the decision-value result becomes a direct practitioner-facing cost comparison
-  - optionally add day-level or station-day bootstrap if date indices are exported
-  - package a deployment diagnostic flowchart once the above reinforcement results are stable
-  - the above reinforcement tasks have now been completed at station-level and day-bootstrap level; remaining work is paper-facing polish
-  - only then decide whether to run a narrowly scoped Stage 3 localized reliability experiment for H1 positive-demand hard cells
+  - the reinforcement tasks have now been completed at station-level and day-bootstrap level; remaining work there is paper-facing polish
+  - review whether `misspecification/`, `crc_risk_control/`, and `crc_risk_control_followup/` should stay in the main text or move partly to appendix
+  - treat `docs/journal_preference_mapping_experiment_plan.md` as the next executable Lenovo package if we want to test a deployment-layer bridge between cost-aware and risk-aware policy selection
+  - run preference mapping in two layers only
+  - Phase A mapping/frontier/conflict first
+  - Phase B risk-screened deployment only if Phase A shows non-trivial disagreement
+  - keep aggregate procurement proxy disabled in the first run
+  - only after that decide whether to run a narrowly scoped Stage 3 localized reliability experiment for H1 positive-demand hard cells
 - Keep conference-facing and journal-facing outputs clearly separated.
