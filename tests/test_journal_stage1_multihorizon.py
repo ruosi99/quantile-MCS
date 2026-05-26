@@ -69,6 +69,12 @@ def test_pag_informer_quantile_multi_horizon_output_shape_and_ordering():
     ).to(device)
     model.eval()
 
+    named_parameters = dict(model.named_parameters())
+    assert "gat_layer.head_weights.0" in named_parameters
+    assert "gat_layer.head_attn.0" in named_parameters
+    assert model.informer.encoder.layers[0].self_attn.batch_first
+    assert model.informer.decoder.layers[0].self_attn.batch_first
+
     occ = torch.rand(2, 3, 4, device=device)
     prc = torch.rand(2, 3, 4, device=device)
     with torch.no_grad():

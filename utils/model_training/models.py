@@ -37,13 +37,17 @@ class MultiHeadsGATLayer(nn.Module):
         super(MultiHeadsGATLayer, self).__init__()
 
         self.head_n = head_n
-        self.heads_dict = dict()
+        self.head_weights = nn.ParameterList()
+        self.head_attn = nn.ParameterList()
+        param_device = a_sparse.device
         for n in range(head_n):
-            self.heads_dict[n, 0] = nn.Parameter(torch.zeros(size=(input_dim, out_dim), device=device))
-            self.heads_dict[n, 1] = nn.Parameter(torch.zeros(size=(1, 2 * out_dim), device=device))
-            nn.init.xavier_normal_(self.heads_dict[n, 0], gain=1.414)
-            nn.init.xavier_normal_(self.heads_dict[n, 1], gain=1.414)
-        self.linear = nn.Linear(head_n, 1, device=device)
+            weight = nn.Parameter(torch.empty(size=(input_dim, out_dim), device=param_device))
+            attn = nn.Parameter(torch.empty(size=(1, 2 * out_dim), device=param_device))
+            nn.init.xavier_normal_(weight, gain=1.414)
+            nn.init.xavier_normal_(attn, gain=1.414)
+            self.head_weights.append(weight)
+            self.head_attn.append(attn)
+        self.linear = nn.Linear(head_n, 1, device=param_device)
 
         # regularization
         self.leakyrelu = nn.LeakyReLU(alpha)
@@ -67,9 +71,9 @@ class MultiHeadsGATLayer(nn.Module):
         atts_stack = []
         # multi-heads attention
         for n in range(self.head_n):
-            h = torch.matmul(x, self.heads_dict[n, 0])   # [b*n, out_dim]
+            h = torch.matmul(x, self.head_weights[n])   # [b*n, out_dim]
             edge_h = torch.cat((h[self.edges[0, :], :], h[self.edges[1, :], :]), dim=1).t()  # [2 * out_dim, num_edges]
-            atts = self.heads_dict[n, 1].mm(edge_h).squeeze()  # [num_edges]
+            atts = self.head_attn[n].mm(edge_h).squeeze()  # [num_edges]
             atts = self.leakyrelu(atts)
             atts_stack.append(atts)
 
@@ -1123,11 +1127,11 @@ class Informer(nn.Module):
         super(Informer, self).__init__()
         self.input_proj = nn.Linear(input_dim, d_model)  # Projection layer to transform input_dim to d_model
         self.encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(d_model, n_heads),
+            nn.TransformerEncoderLayer(d_model=d_model, nhead=n_heads, batch_first=True),
             num_layers=e_layers
         )
         self.decoder = nn.TransformerDecoder(
-            nn.TransformerDecoderLayer(d_model, n_heads),
+            nn.TransformerDecoderLayer(d_model=d_model, nhead=n_heads, batch_first=True),
             num_layers=d_layers
         )
         # self.fc_out = nn.Linear(d_model, pred_len)
