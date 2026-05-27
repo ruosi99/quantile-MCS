@@ -287,6 +287,7 @@ def evaluate_model(
     output_dir: Path,
     model_name: str,
     max_test_batches: int,
+    save_arrays: bool,
 ) -> dict[str, object]:
     model.eval()
     predict_list = []
@@ -318,12 +319,20 @@ def evaluate_model(
     assert_monotonic_quantiles(predict_q, context="stage1 saved predict_quantiles")
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    np.save(output_dir / "predict_quantiles.npy", predict_q)
-    np.save(output_dir / "label_list.npy", labels)
 
     q50_idx = quantile_index(quantiles, 0.5)
     point_pred = predict_q[..., q50_idx]
-    np.save(output_dir / "predict_point_q50.npy", point_pred)
+
+    array_files = {}
+    if save_arrays:
+        np.save(output_dir / "predict_quantiles.npy", predict_q)
+        np.save(output_dir / "label_list.npy", labels)
+        np.save(output_dir / "predict_point_q50.npy", point_pred)
+        array_files = {
+            "predict_quantiles_file": "predict_quantiles.npy",
+            "label_file": "label_list.npy",
+            "predict_point_q50_file": "predict_point_q50.npy",
+        }
 
     point_rows = []
     crossing_rows = []
@@ -368,6 +377,8 @@ def evaluate_model(
         "point_metrics_file": "point_metrics_by_horizon.csv",
         "raw_interval_metrics_file": "raw_interval_metrics_by_horizon.csv",
         "crossing_metrics_file": "quantile_crossing_metrics_by_horizon.csv",
+        "arrays_saved": save_arrays,
+        "array_files": array_files,
         "model_name": model_name,
     }
 
@@ -391,6 +402,9 @@ def main() -> None:
     parser.add_argument("--max-train-batches", type=int, default=0)
     parser.add_argument("--max-valid-batches", type=int, default=0)
     parser.add_argument("--max-test-batches", type=int, default=0)
+    parser.add_argument("--freeze-gat-heads", type=parse_bool, default=False)
+    parser.add_argument("--transformer-batch-first", type=parse_bool, default=True)
+    parser.add_argument("--save-arrays", type=parse_bool, default=True)
     args = parser.parse_args()
 
     horizons = parse_int_list(args.horizons)
@@ -418,7 +432,9 @@ def main() -> None:
 
     load_method = args.load_method or (
         "models.PAGInformerQuantile("
-        "a_sparse=adj_sparse, seq=args.seq_len, quantiles=quantiles, horizons=horizons"
+        "a_sparse=adj_sparse, seq=args.seq_len, quantiles=quantiles, horizons=horizons, "
+        "train_gat_heads=not args.freeze_gat_heads, "
+        "transformer_batch_first=args.transformer_batch_first"
         ").to(device)"
     )
     model = eval(load_method)
@@ -458,6 +474,7 @@ def main() -> None:
         output_dir=output_dir,
         model_name=args.model_name,
         max_test_batches=args.max_test_batches,
+        save_arrays=args.save_arrays,
     )
 
     metadata = {
@@ -474,6 +491,9 @@ def main() -> None:
         "quantiles": quantiles,
         "batch_size": args.batch_size,
         "epochs": args.epochs,
+        "freeze_gat_heads": args.freeze_gat_heads,
+        "transformer_batch_first": args.transformer_batch_first,
+        "save_arrays": args.save_arrays,
         "device": str(device),
         "cuda_available": bool(torch.cuda.is_available()),
         "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "",

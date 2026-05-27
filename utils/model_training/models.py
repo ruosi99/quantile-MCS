@@ -33,10 +33,11 @@ class LSTM(nn.Module):
         return x
 
 class MultiHeadsGATLayer(nn.Module):
-    def __init__(self, a_sparse, input_dim, out_dim, head_n, dropout, alpha):  # input_dim = seq_length
+    def __init__(self, a_sparse, input_dim, out_dim, head_n, dropout, alpha, train_heads=True):  # input_dim = seq_length
         super(MultiHeadsGATLayer, self).__init__()
 
         self.head_n = head_n
+        self.train_heads = train_heads
         self.head_weights = nn.ParameterList()
         self.head_attn = nn.ParameterList()
         param_device = a_sparse.device
@@ -45,6 +46,8 @@ class MultiHeadsGATLayer(nn.Module):
             attn = nn.Parameter(torch.empty(size=(1, 2 * out_dim), device=param_device))
             nn.init.xavier_normal_(weight, gain=1.414)
             nn.init.xavier_normal_(attn, gain=1.414)
+            weight.requires_grad_(train_heads)
+            attn.requires_grad_(train_heads)
             self.head_weights.append(weight)
             self.head_attn.append(attn)
         self.linear = nn.Linear(head_n, 1, device=param_device)
@@ -1123,15 +1126,26 @@ class PAGS4(nn.Module):
         return y
 
 class Informer(nn.Module):
-    def __init__(self, input_dim, seq_len, pred_len, d_model=128, n_heads=4, e_layers=4, d_layers=4):
+    def __init__(
+        self,
+        input_dim,
+        seq_len,
+        pred_len,
+        d_model=128,
+        n_heads=4,
+        e_layers=4,
+        d_layers=4,
+        batch_first=True,
+    ):
         super(Informer, self).__init__()
+        self.batch_first = batch_first
         self.input_proj = nn.Linear(input_dim, d_model)  # Projection layer to transform input_dim to d_model
         self.encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(d_model=d_model, nhead=n_heads, batch_first=True),
+            nn.TransformerEncoderLayer(d_model=d_model, nhead=n_heads, batch_first=batch_first),
             num_layers=e_layers
         )
         self.decoder = nn.TransformerDecoder(
-            nn.TransformerDecoderLayer(d_model=d_model, nhead=n_heads, batch_first=True),
+            nn.TransformerDecoderLayer(d_model=d_model, nhead=n_heads, batch_first=batch_first),
             num_layers=d_layers
         )
         # self.fc_out = nn.Linear(d_model, pred_len)
@@ -1275,7 +1289,17 @@ class PAGInformerAblation(nn.Module):
             return out.view(b, n)
 
 class PAGInformerQuantile(nn.Module):
-    def __init__(self, a_sparse, seq=12, pred_len=6, hidden_dim=128, quantiles=None, horizons=None):
+    def __init__(
+        self,
+        a_sparse,
+        seq=12,
+        pred_len=6,
+        hidden_dim=128,
+        quantiles=None,
+        horizons=None,
+        train_gat_heads=True,
+        transformer_batch_first=True,
+    ):
         super(PAGInformerQuantile, self).__init__()
 
         if quantiles is None:
@@ -1287,6 +1311,8 @@ class PAGInformerQuantile(nn.Module):
         self.Q = len(quantiles)
         self.horizons = [int(h) for h in horizons]
         self.H = len(self.horizons)
+        self.train_gat_heads = train_gat_heads
+        self.transformer_batch_first = transformer_batch_first
 
         self.seq = seq
         self.pred_len = pred_len
@@ -1295,14 +1321,23 @@ class PAGInformerQuantile(nn.Module):
         self.nodes = a_sparse.shape[0]
 
         # ===== Backbone 不动 =====
-        self.gat_layer = MultiHeadsGATLayer(a_sparse, seq, seq, head_n=4, dropout=0, alpha=0.2)
+        self.gat_layer = MultiHeadsGATLayer(
+            a_sparse,
+            seq,
+            seq,
+            head_n=4,
+            dropout=0,
+            alpha=0.2,
+            train_heads=train_gat_heads,
+        )
         self.gcn = nn.Linear(in_features=seq, out_features=seq)
 
         self.informer = Informer(
             input_dim=seq * 2,
             seq_len=seq,
             pred_len=pred_len,
-            d_model=hidden_dim
+            d_model=hidden_dim,
+            batch_first=transformer_batch_first,
         )
 
         self.dropout = nn.Dropout(p=0.5)

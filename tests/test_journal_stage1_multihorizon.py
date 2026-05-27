@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -11,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import utils.model_training.models as models  # noqa: E402
 from scripts.journal.train_multihorizon_raw import (  # noqa: E402
+    evaluate_model,
     load_matching_state_dict,
     point_metrics,
     quantile_crossing_metrics,
@@ -74,6 +76,36 @@ def test_pag_informer_quantile_multi_horizon_output_shape_and_ordering():
     assert "gat_layer.head_attn.0" in named_parameters
     assert model.informer.encoder.layers[0].self_attn.batch_first
     assert model.informer.decoder.layers[0].self_attn.batch_first
+    assert model.gat_layer.head_weights[0].requires_grad
+    assert model.gat_layer.head_attn[0].requires_grad
+
+    occ = torch.rand(2, 3, 4, device=device)
+    prc = torch.rand(2, 3, 4, device=device)
+    with torch.no_grad():
+        pred = model(occ, prc)
+
+    assert pred.shape == (2, 3, 2, 3)
+    assert torch.all(pred[..., 1:] >= pred[..., :-1])
+
+
+def test_pag_informer_quantile_can_freeze_gat_heads_and_use_legacy_transformer_layout():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    adjacency = torch.eye(3, dtype=torch.float32, device=device).to_sparse()
+    model = models.PAGInformerQuantile(
+        a_sparse=adjacency,
+        seq=4,
+        hidden_dim=8,
+        quantiles=[0.1, 0.5, 0.9],
+        horizons=[1, 3],
+        train_gat_heads=False,
+        transformer_batch_first=False,
+    ).to(device)
+    model.eval()
+
+    assert not model.gat_layer.head_weights[0].requires_grad
+    assert not model.gat_layer.head_attn[0].requires_grad
+    assert not model.informer.encoder.layers[0].self_attn.batch_first
+    assert not model.informer.decoder.layers[0].self_attn.batch_first
 
     occ = torch.rand(2, 3, 4, device=device)
     prc = torch.rand(2, 3, 4, device=device)
@@ -115,3 +147,44 @@ def test_load_matching_state_dict_skips_mismatched_output_layer():
     skipped = {item["key"]: item["reason"] for item in report["skipped_keys"]}
     assert skipped["2.weight"] == "shape_mismatch"
     assert skipped["2.bias"] == "shape_mismatch"
+
+
+class _TinyQuantileModel(torch.nn.Module):
+    def __init__(self, quantile_count):
+        super().__init__()
+        self.quantile_count = quantile_count
+
+    def forward(self, demand, price):
+        b, n, _ = demand.shape
+        base = torch.ones(b, n, 2, 1, device=demand.device)
+        increments = torch.ones(b, n, 2, self.quantile_count - 1, device=demand.device)
+        return torch.cat([base, base + torch.cumsum(increments, dim=-1)], dim=-1)
+
+
+def test_evaluate_model_can_skip_large_prediction_arrays(tmp_path):
+    occ = np.arange(30, dtype=np.float32).reshape(10, 3)
+    prc = occ + 1
+    dataset = CreateMultiHorizonDataset(occ, prc, seq_l=2, horizons=[1, 2], device=torch.device("cpu"))
+    loader = DataLoader(dataset, batch_size=2, shuffle=False, drop_last=False)
+    quantiles = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.833333333333, 0.9, 0.95]
+
+    report = evaluate_model(
+        model=_TinyQuantileModel(quantile_count=len(quantiles)),
+        test_loader=loader,
+        device=torch.device("cpu"),
+        cap=np.ones((1, 3), dtype=np.float32),
+        quantiles=quantiles,
+        horizons=[1, 2],
+        output_dir=tmp_path,
+        model_name="tiny",
+        max_test_batches=1,
+        save_arrays=False,
+    )
+
+    assert report["arrays_saved"] is False
+    assert report["array_files"] == {}
+    assert (tmp_path / "point_metrics_by_horizon.csv").exists()
+    assert (tmp_path / "raw_interval_metrics_by_horizon.csv").exists()
+    assert not (tmp_path / "predict_quantiles.npy").exists()
+    assert not (tmp_path / "label_list.npy").exists()
+    assert not (tmp_path / "predict_point_q50.npy").exists()
