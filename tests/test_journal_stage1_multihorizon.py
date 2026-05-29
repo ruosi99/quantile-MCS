@@ -116,6 +116,39 @@ def test_pag_informer_quantile_can_freeze_gat_heads_and_use_legacy_transformer_l
     assert torch.all(pred[..., 1:] >= pred[..., :-1])
 
 
+def test_temporal_graph_quantile_output_shape_ordering_and_batch_safety():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    adjacency = torch.tensor(
+        [
+            [1.0, 0.5, 0.0],
+            [0.5, 1.0, 0.25],
+            [0.0, 0.25, 1.0],
+        ],
+        dtype=torch.float32,
+        device=device,
+    ).to_sparse()
+    model = models.TemporalGraphQuantile(
+        a_sparse=adjacency,
+        seq=4,
+        hidden_dim=8,
+        quantiles=[0.1, 0.5, 0.9],
+        horizons=[1, 3],
+        graph_layers=1,
+        dropout=0.0,
+    ).to(device)
+    model.eval()
+
+    occ = torch.rand(2, 3, 4, device=device)
+    prc = torch.rand(2, 3, 4, device=device)
+    with torch.no_grad():
+        pred_batch = model(occ, prc)
+        pred_single = model(occ[:1], prc[:1])
+
+    assert pred_batch.shape == (2, 3, 2, 3)
+    assert torch.all(pred_batch[..., 1:] >= pred_batch[..., :-1])
+    assert torch.allclose(pred_batch[:1], pred_single, atol=1e-6)
+
+
 def test_stage1_metric_helpers_are_shape_agnostic():
     labels = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
     pred = labels.copy()

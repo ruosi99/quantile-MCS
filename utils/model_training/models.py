@@ -1396,6 +1396,110 @@ class PAGInformerQuantile(nn.Module):
         return quantiles
 
 
+class TemporalGraphQuantile(nn.Module):
+    """
+    Batch-safe temporal-spatial quantile forecaster.
+
+    The temporal encoder runs along each node's own history, then graph diffusion
+    shares information across nodes. This avoids the legacy Informer behavior
+    where different sliding-window samples could attend to each other through the
+    batch axis.
+    """
+    def __init__(
+        self,
+        a_sparse,
+        seq=24,
+        hidden_dim=128,
+        quantiles=None,
+        horizons=None,
+        input_features=2,
+        temporal_layers=1,
+        graph_layers=2,
+        dropout=0.1,
+        graph_self_loop=True,
+    ):
+        super().__init__()
+
+        if quantiles is None:
+            quantiles = [0.05, 0.1, 0.2, 0.5, 0.8, 0.9, 0.95]
+        if horizons is None:
+            horizons = [1]
+
+        self.quantiles = [float(q) for q in quantiles]
+        self.Q = len(self.quantiles)
+        self.horizons = [int(h) for h in horizons]
+        self.H = len(self.horizons)
+        self.seq = seq
+        self.hidden_dim = hidden_dim
+        self.graph_layers = graph_layers
+        self.graph_self_loop = graph_self_loop
+
+        adj_dense = a_sparse.to_dense().float()
+        adj_dense = torch.nan_to_num(adj_dense, nan=0.0, posinf=0.0, neginf=0.0)
+        adj_dense = torch.clamp(adj_dense, min=0.0)
+        if graph_self_loop:
+            adj_dense = adj_dense.clone()
+            adj_dense.fill_diagonal_(1.0)
+        row_sum = adj_dense.sum(dim=1, keepdim=True).clamp_min(1e-6)
+        self.register_buffer("adj_norm", (adj_dense / row_sum).to_sparse().coalesce())
+
+        self.input_norm = nn.LayerNorm(input_features)
+        self.temporal_encoder = nn.GRU(
+            input_size=input_features,
+            hidden_size=hidden_dim,
+            num_layers=temporal_layers,
+            batch_first=True,
+            dropout=dropout if temporal_layers > 1 else 0.0,
+        )
+        self.temporal_norm = nn.LayerNorm(hidden_dim)
+
+        self.graph_linears = nn.ModuleList([
+            nn.Linear(hidden_dim, hidden_dim) for _ in range(graph_layers)
+        ])
+        self.graph_norms = nn.ModuleList([
+            nn.LayerNorm(hidden_dim) for _ in range(graph_layers)
+        ])
+
+        self.horizon_embedding = nn.Embedding(self.H, hidden_dim)
+        self.quantile_head = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, self.Q),
+        )
+        self.dropout = nn.Dropout(dropout)
+        self.softplus = nn.Softplus()
+
+    def forward(self, occ, prc):
+        b, n, s = occ.shape
+        x = torch.stack([occ, prc], dim=-1)  # (B,N,S,2)
+        x = self.input_norm(x)
+        x = x.reshape(b * n, s, -1)
+
+        _, h = self.temporal_encoder(x)
+        h = h[-1].view(b, n, self.hidden_dim)
+        h = self.temporal_norm(h)
+
+        for linear, norm in zip(self.graph_linears, self.graph_norms):
+            msg = h.transpose(0, 1).reshape(n, b * self.hidden_dim)
+            msg = torch.sparse.mm(self.adj_norm.to(dtype=h.dtype, device=h.device), msg)
+            msg = msg.reshape(n, b, self.hidden_dim).transpose(0, 1)
+            msg = self.dropout(F.gelu(linear(msg)))
+            h = norm(h + msg)
+
+        horizon_ids = torch.arange(self.H, device=h.device)
+        horizon_h = h.unsqueeze(2) + self.horizon_embedding(horizon_ids).view(1, 1, self.H, -1)
+        raw_q = self.quantile_head(horizon_h)
+
+        base = self.softplus(raw_q[..., 0:1])
+        increments = self.softplus(raw_q[..., 1:])
+        quantiles = torch.cat(
+            [base, base + torch.cumsum(increments, dim=-1)],
+            dim=-1,
+        )
+        return quantiles
+
+
 class PAGInformerQuantileIndependent(nn.Module):
     """
     Ablation A: independent quantile outputs without the monotonic cumulative head.
