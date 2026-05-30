@@ -146,6 +146,7 @@ def test_temporal_graph_quantile_output_shape_ordering_and_batch_safety():
 
     assert pred_batch.shape == (2, 3, 2, 3)
     assert torch.all(pred_batch[..., 1:] >= pred_batch[..., :-1])
+    assert pred_batch[..., -1].max().item() < 0.25
     assert torch.allclose(pred_batch[:1], pred_single, atol=1e-6)
 
 

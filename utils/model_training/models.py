@@ -1443,9 +1443,13 @@ class TemporalGraphQuantile(nn.Module):
         row_sum = adj_dense.sum(dim=1, keepdim=True).clamp_min(1e-6)
         self.register_buffer("adj_norm", (adj_dense / row_sum).to_sparse().coalesce())
 
-        self.input_norm = nn.LayerNorm(input_features)
+        self.feature_proj = nn.Sequential(
+            nn.Linear(input_features, hidden_dim),
+            nn.GELU(),
+            nn.LayerNorm(hidden_dim),
+        )
         self.temporal_encoder = nn.GRU(
-            input_size=input_features,
+            input_size=hidden_dim,
             hidden_size=hidden_dim,
             num_layers=temporal_layers,
             batch_first=True,
@@ -1469,11 +1473,28 @@ class TemporalGraphQuantile(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
         self.softplus = nn.Softplus()
+        self._reset_quantile_head()
+
+    @staticmethod
+    def _softplus_inverse(value: torch.Tensor) -> torch.Tensor:
+        return torch.log(torch.expm1(value).clamp_min(1e-8))
+
+    def _reset_quantile_head(self) -> None:
+        last_layer = self.quantile_head[-1]
+        nn.init.zeros_(last_layer.weight)
+
+        quantiles = torch.tensor(self.quantiles, dtype=torch.float32)
+        initial_curve = 0.02 + 0.18 * quantiles
+        increments = torch.empty_like(initial_curve)
+        increments[0] = initial_curve[0]
+        increments[1:] = initial_curve[1:] - initial_curve[:-1]
+        with torch.no_grad():
+            last_layer.bias.copy_(self._softplus_inverse(increments))
 
     def forward(self, occ, prc):
         b, n, s = occ.shape
         x = torch.stack([occ, prc], dim=-1)  # (B,N,S,2)
-        x = self.input_norm(x)
+        x = self.feature_proj(x)
         x = x.reshape(b * n, s, -1)
 
         _, h = self.temporal_encoder(x)

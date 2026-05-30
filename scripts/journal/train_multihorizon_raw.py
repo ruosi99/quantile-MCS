@@ -486,6 +486,7 @@ def main() -> None:
         "data_dir": args.data_dir,
         "output_dir": str(output_dir),
         "model_name": args.model_name,
+        "load_method": load_method,
         "seq_len": args.seq_len,
         "horizons": horizons,
         "quantiles": quantiles,
