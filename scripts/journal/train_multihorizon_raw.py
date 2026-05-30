@@ -398,6 +398,7 @@ def main() -> None:
     parser.add_argument("--weight-decay", type=float, default=1e-5)
     parser.add_argument("--seq-len", type=int, default=24)
     parser.add_argument("--horizons", default=",".join(str(h) for h in DEFAULT_JOURNAL_HORIZONS))
+    parser.add_argument("--horizon-loss-weights", default="")
     parser.add_argument("--quantiles", default=",".join(f"{q:.12g}" for q in DEFAULT_JOURNAL_QUANTILES))
     parser.add_argument("--max-train-batches", type=int, default=0)
     parser.add_argument("--max-valid-batches", type=int, default=0)
@@ -408,6 +409,12 @@ def main() -> None:
     args = parser.parse_args()
 
     horizons = parse_int_list(args.horizons)
+    horizon_loss_weights = parse_float_list(args.horizon_loss_weights) if args.horizon_loss_weights else []
+    if horizon_loss_weights and len(horizon_loss_weights) != len(horizons):
+        raise ValueError(
+            "--horizon-loss-weights must have the same length as --horizons: "
+            f"got {len(horizon_loss_weights)} weights for {len(horizons)} horizons"
+        )
     quantiles = parse_float_list(args.quantiles)
     output_dir = Path(args.output_dir)
     checkpoint_path = output_dir / f"{args.model_name}_checkpoint.pt"
@@ -440,7 +447,10 @@ def main() -> None:
     model = eval(load_method)
     warm_start_report = warm_start_model(model, args.warm_start_checkpoint, device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-    loss_fn = QuantileLoss(quantiles=quantiles).to(device)
+    loss_fn = QuantileLoss(
+        quantiles=quantiles,
+        horizon_weights=horizon_loss_weights or None,
+    ).to(device)
 
     train_report: dict[str, float | int | str]
     if args.train:
@@ -489,6 +499,7 @@ def main() -> None:
         "load_method": load_method,
         "seq_len": args.seq_len,
         "horizons": horizons,
+        "horizon_loss_weights": horizon_loss_weights,
         "quantiles": quantiles,
         "batch_size": args.batch_size,
         "epochs": args.epochs,

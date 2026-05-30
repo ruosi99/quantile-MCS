@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 import torch
 from torch.utils.data import DataLoader
 
@@ -57,6 +58,25 @@ def test_quantile_loss_accepts_multi_horizon_tensors():
     loss = loss_fn(pred, target)
     assert loss.ndim == 0
     assert float(loss) >= 0.0
+
+
+def test_quantile_loss_can_weight_multi_horizon_tensors():
+    loss_fn = QuantileLoss([0.5], horizon_weights=[2.0, 1.0])
+    pred = torch.zeros(1, 1, 2, 1)
+    target = torch.tensor([[[1.0, 3.0]]])
+
+    loss = loss_fn(pred, target)
+
+    assert torch.isclose(loss, torch.tensor(5.0 / 6.0))
+
+
+def test_quantile_loss_rejects_mismatched_horizon_weights():
+    loss_fn = QuantileLoss([0.5], horizon_weights=[1.0, 1.0, 1.0])
+    pred = torch.zeros(1, 1, 2, 1)
+    target = torch.zeros(1, 1, 2)
+
+    with pytest.raises(ValueError, match="horizon weight mismatch"):
+        loss_fn(pred, target)
 
 
 def test_pag_informer_quantile_multi_horizon_output_shape_and_ordering():
