@@ -1,4 +1,5 @@
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import utils.model_training.models as models  # noqa: E402
 from scripts.journal.train_multihorizon_raw import (  # noqa: E402
+    build_model,
     evaluate_model,
     load_matching_state_dict,
     point_metrics,
@@ -168,6 +170,34 @@ def test_temporal_graph_quantile_output_shape_ordering_and_batch_safety():
     assert torch.all(pred_batch[..., 1:] >= pred_batch[..., :-1])
     assert pred_batch[..., -1].max().item() < 0.25
     assert torch.allclose(pred_batch[:1], pred_single, atol=1e-6)
+
+
+def test_stage1_build_model_can_select_temporal_graph_quantile():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    adjacency = torch.eye(3, dtype=torch.float32, device=device).to_sparse()
+    args = SimpleNamespace(
+        architecture="temporal_graph_quantile",
+        dropout=0.0,
+        freeze_gat_heads=False,
+        graph_layers=1,
+        hidden_dim=16,
+        load_method="",
+        seq_len=4,
+        temporal_layers=1,
+        transformer_batch_first=True,
+    )
+
+    model, load_method = build_model(
+        args=args,
+        adj_sparse=adjacency,
+        quantiles=[0.1, 0.5, 0.9],
+        horizons=[1, 3],
+        device=device,
+    )
+
+    assert isinstance(model, models.TemporalGraphQuantile)
+    assert model.hidden_dim == 16
+    assert "TemporalGraphQuantile" in load_method
 
 
 def test_stage1_metric_helpers_are_shape_agnostic():

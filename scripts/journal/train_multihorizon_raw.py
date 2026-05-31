@@ -230,6 +230,67 @@ def build_dataloaders(
     return (*loaders, split_lengths)
 
 
+def build_model(
+    args: argparse.Namespace,
+    adj_sparse: torch.Tensor,
+    quantiles: list[float],
+    horizons: list[int],
+    device: torch.device,
+) -> tuple[torch.nn.Module, str]:
+    if args.load_method:
+        local_context = {
+            "args": args,
+            "adj_sparse": adj_sparse,
+            "device": device,
+            "horizons": horizons,
+            "models": models,
+            "quantiles": quantiles,
+        }
+        return eval(args.load_method, globals(), local_context), args.load_method
+
+    if args.architecture == "pag_informer":
+        model = models.PAGInformerQuantile(
+            a_sparse=adj_sparse,
+            seq=args.seq_len,
+            hidden_dim=args.hidden_dim,
+            quantiles=quantiles,
+            horizons=horizons,
+            train_gat_heads=not args.freeze_gat_heads,
+            transformer_batch_first=args.transformer_batch_first,
+        ).to(device)
+        load_method = (
+            "models.PAGInformerQuantile("
+            f"a_sparse=adj_sparse, seq={args.seq_len}, hidden_dim={args.hidden_dim}, "
+            "quantiles=quantiles, horizons=horizons, "
+            f"train_gat_heads={not args.freeze_gat_heads}, "
+            f"transformer_batch_first={args.transformer_batch_first}"
+            ").to(device)"
+        )
+    elif args.architecture == "temporal_graph_quantile":
+        model = models.TemporalGraphQuantile(
+            a_sparse=adj_sparse,
+            seq=args.seq_len,
+            hidden_dim=args.hidden_dim,
+            quantiles=quantiles,
+            horizons=horizons,
+            temporal_layers=args.temporal_layers,
+            graph_layers=args.graph_layers,
+            dropout=args.dropout,
+        ).to(device)
+        load_method = (
+            "models.TemporalGraphQuantile("
+            f"a_sparse=adj_sparse, seq={args.seq_len}, hidden_dim={args.hidden_dim}, "
+            "quantiles=quantiles, horizons=horizons, "
+            f"temporal_layers={args.temporal_layers}, graph_layers={args.graph_layers}, "
+            f"dropout={args.dropout}"
+            ").to(device)"
+        )
+    else:
+        raise ValueError(f"Unknown architecture: {args.architecture}")
+
+    return model, load_method
+
+
 def train_model(
     model: torch.nn.Module,
     train_loader: DataLoader,
@@ -389,6 +450,7 @@ def main() -> None:
     parser.add_argument("--output-dir", default="journal_results/shenzhen_multihorizon/raw")
     parser.add_argument("--model-name", default="journal_dura_pag_informer_quantile_multihorizon_raw")
     parser.add_argument("--load-method", default="")
+    parser.add_argument("--architecture", choices=["pag_informer", "temporal_graph_quantile"], default="pag_informer")
     parser.add_argument("--warm-start-checkpoint", default="")
     parser.add_argument("--use-cuda", type=parse_bool, default=True)
     parser.add_argument("--train", type=parse_bool, default=True)
@@ -397,6 +459,10 @@ def main() -> None:
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=1e-5)
     parser.add_argument("--seq-len", type=int, default=24)
+    parser.add_argument("--hidden-dim", type=int, default=128)
+    parser.add_argument("--temporal-layers", type=int, default=1)
+    parser.add_argument("--graph-layers", type=int, default=2)
+    parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--horizons", default=",".join(str(h) for h in DEFAULT_JOURNAL_HORIZONS))
     parser.add_argument("--horizon-loss-weights", default="")
     parser.add_argument("--quantiles", default=",".join(f"{q:.12g}" for q in DEFAULT_JOURNAL_QUANTILES))
@@ -437,14 +503,7 @@ def main() -> None:
         device=device,
     )
 
-    load_method = args.load_method or (
-        "models.PAGInformerQuantile("
-        "a_sparse=adj_sparse, seq=args.seq_len, quantiles=quantiles, horizons=horizons, "
-        "train_gat_heads=not args.freeze_gat_heads, "
-        "transformer_batch_first=args.transformer_batch_first"
-        ").to(device)"
-    )
-    model = eval(load_method)
+    model, load_method = build_model(args, adj_sparse, quantiles, horizons, device)
     warm_start_report = warm_start_model(model, args.warm_start_checkpoint, device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     loss_fn = QuantileLoss(
@@ -496,8 +555,13 @@ def main() -> None:
         "data_dir": args.data_dir,
         "output_dir": str(output_dir),
         "model_name": args.model_name,
+        "architecture": args.architecture,
         "load_method": load_method,
         "seq_len": args.seq_len,
+        "hidden_dim": args.hidden_dim,
+        "temporal_layers": args.temporal_layers,
+        "graph_layers": args.graph_layers,
+        "dropout": args.dropout,
         "horizons": horizons,
         "horizon_loss_weights": horizon_loss_weights,
         "quantiles": quantiles,
