@@ -1521,6 +1521,162 @@ class TemporalGraphQuantile(nn.Module):
         return quantiles
 
 
+class MultiScaleTemporalGraphQuantile(nn.Module):
+    """
+    Multi-scale extension of TemporalGraphQuantile.
+
+    A short temporal branch focuses on recent dynamics, while a long branch sees
+    the full input window. A horizon-conditioned gate learns how much each
+    forecast horizon should rely on the short or long representation.
+    """
+    def __init__(
+        self,
+        a_sparse,
+        seq=48,
+        short_seq=24,
+        hidden_dim=128,
+        quantiles=None,
+        horizons=None,
+        input_features=2,
+        temporal_layers=1,
+        graph_layers=2,
+        dropout=0.1,
+        graph_self_loop=True,
+    ):
+        super().__init__()
+
+        if quantiles is None:
+            quantiles = [0.05, 0.1, 0.2, 0.5, 0.8, 0.9, 0.95]
+        if horizons is None:
+            horizons = [1]
+
+        self.quantiles = [float(q) for q in quantiles]
+        self.Q = len(self.quantiles)
+        self.horizons = [int(h) for h in horizons]
+        self.H = len(self.horizons)
+        self.seq = int(seq)
+        self.short_seq = min(int(short_seq), self.seq)
+        self.hidden_dim = hidden_dim
+        self.graph_layers = graph_layers
+        self.graph_self_loop = graph_self_loop
+
+        adj_dense = a_sparse.to_dense().float()
+        adj_dense = torch.nan_to_num(adj_dense, nan=0.0, posinf=0.0, neginf=0.0)
+        adj_dense = torch.clamp(adj_dense, min=0.0)
+        if graph_self_loop:
+            adj_dense = adj_dense.clone()
+            adj_dense.fill_diagonal_(1.0)
+        row_sum = adj_dense.sum(dim=1, keepdim=True).clamp_min(1e-6)
+        self.register_buffer("adj_norm", (adj_dense / row_sum).to_sparse().coalesce())
+
+        self.feature_proj = nn.Sequential(
+            nn.Linear(input_features, hidden_dim),
+            nn.GELU(),
+            nn.LayerNorm(hidden_dim),
+        )
+        self.short_encoder = nn.GRU(
+            input_size=hidden_dim,
+            hidden_size=hidden_dim,
+            num_layers=temporal_layers,
+            batch_first=True,
+            dropout=dropout if temporal_layers > 1 else 0.0,
+        )
+        self.long_encoder = nn.GRU(
+            input_size=hidden_dim,
+            hidden_size=hidden_dim,
+            num_layers=temporal_layers,
+            batch_first=True,
+            dropout=dropout if temporal_layers > 1 else 0.0,
+        )
+        self.short_norm = nn.LayerNorm(hidden_dim)
+        self.long_norm = nn.LayerNorm(hidden_dim)
+
+        self.graph_linears = nn.ModuleList([
+            nn.Linear(hidden_dim, hidden_dim) for _ in range(graph_layers)
+        ])
+        self.graph_norms = nn.ModuleList([
+            nn.LayerNorm(hidden_dim) for _ in range(graph_layers)
+        ])
+
+        self.horizon_embedding = nn.Embedding(self.H, hidden_dim)
+        self.horizon_gate = nn.Sequential(
+            nn.Linear(hidden_dim * 3, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Sigmoid(),
+        )
+        self.quantile_head = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, self.Q),
+        )
+        self.dropout = nn.Dropout(dropout)
+        self.softplus = nn.Softplus()
+        self._reset_quantile_head()
+
+    @staticmethod
+    def _softplus_inverse(value: torch.Tensor) -> torch.Tensor:
+        return torch.log(torch.expm1(value).clamp_min(1e-8))
+
+    def _reset_quantile_head(self) -> None:
+        last_layer = self.quantile_head[-1]
+        nn.init.zeros_(last_layer.weight)
+
+        quantiles = torch.tensor(self.quantiles, dtype=torch.float32)
+        initial_curve = 0.02 + 0.18 * quantiles
+        increments = torch.empty_like(initial_curve)
+        increments[0] = initial_curve[0]
+        increments[1:] = initial_curve[1:] - initial_curve[:-1]
+        with torch.no_grad():
+            last_layer.bias.copy_(self._softplus_inverse(increments))
+
+    def _graph_diffuse(self, h: torch.Tensor) -> torch.Tensor:
+        b, n, _ = h.shape
+        for linear, norm in zip(self.graph_linears, self.graph_norms):
+            msg = h.transpose(0, 1).reshape(n, b * self.hidden_dim)
+            msg = torch.sparse.mm(self.adj_norm.to(dtype=h.dtype, device=h.device), msg)
+            msg = msg.reshape(n, b, self.hidden_dim).transpose(0, 1)
+            msg = self.dropout(F.gelu(linear(msg)))
+            h = norm(h + msg)
+        return h
+
+    def forward(self, occ, prc):
+        b, n, s = occ.shape
+        x = torch.stack([occ, prc], dim=-1)  # (B,N,S,2)
+        x = self.feature_proj(x)
+
+        long_x = x.reshape(b * n, s, -1)
+        _, long_h = self.long_encoder(long_x)
+        long_h = self.long_norm(long_h[-1].view(b, n, self.hidden_dim))
+
+        short_steps = min(self.short_seq, s)
+        short_x = x[:, :, -short_steps:, :].reshape(b * n, short_steps, -1)
+        _, short_h = self.short_encoder(short_x)
+        short_h = self.short_norm(short_h[-1].view(b, n, self.hidden_dim))
+
+        short_h = self._graph_diffuse(short_h)
+        long_h = self._graph_diffuse(long_h)
+
+        horizon_ids = torch.arange(self.H, device=x.device)
+        horizon_e = self.horizon_embedding(horizon_ids).view(1, 1, self.H, -1)
+        short_h = short_h.unsqueeze(2).expand(-1, -1, self.H, -1)
+        long_h = long_h.unsqueeze(2).expand(-1, -1, self.H, -1)
+        horizon_e = horizon_e.expand(b, n, -1, -1)
+
+        gate = self.horizon_gate(torch.cat([short_h, long_h, horizon_e], dim=-1))
+        horizon_h = gate * short_h + (1.0 - gate) * long_h + horizon_e
+        raw_q = self.quantile_head(horizon_h)
+
+        base = self.softplus(raw_q[..., 0:1])
+        increments = self.softplus(raw_q[..., 1:])
+        quantiles = torch.cat(
+            [base, base + torch.cumsum(increments, dim=-1)],
+            dim=-1,
+        )
+        return quantiles
+
+
 class PAGInformerQuantileIndependent(nn.Module):
     """
     Ablation A: independent quantile outputs without the monotonic cumulative head.

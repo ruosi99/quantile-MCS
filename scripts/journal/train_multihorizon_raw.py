@@ -285,6 +285,26 @@ def build_model(
             f"dropout={args.dropout}"
             ").to(device)"
         )
+    elif args.architecture == "multi_scale_temporal_graph_quantile":
+        model = models.MultiScaleTemporalGraphQuantile(
+            a_sparse=adj_sparse,
+            seq=args.seq_len,
+            short_seq=args.short_seq,
+            hidden_dim=args.hidden_dim,
+            quantiles=quantiles,
+            horizons=horizons,
+            temporal_layers=args.temporal_layers,
+            graph_layers=args.graph_layers,
+            dropout=args.dropout,
+        ).to(device)
+        load_method = (
+            "models.MultiScaleTemporalGraphQuantile("
+            f"a_sparse=adj_sparse, seq={args.seq_len}, short_seq={args.short_seq}, "
+            f"hidden_dim={args.hidden_dim}, quantiles=quantiles, horizons=horizons, "
+            f"temporal_layers={args.temporal_layers}, graph_layers={args.graph_layers}, "
+            f"dropout={args.dropout}"
+            ").to(device)"
+        )
     else:
         raise ValueError(f"Unknown architecture: {args.architecture}")
 
@@ -450,7 +470,11 @@ def main() -> None:
     parser.add_argument("--output-dir", default="journal_results/shenzhen_multihorizon/raw")
     parser.add_argument("--model-name", default="journal_dura_pag_informer_quantile_multihorizon_raw")
     parser.add_argument("--load-method", default="")
-    parser.add_argument("--architecture", choices=["pag_informer", "temporal_graph_quantile"], default="pag_informer")
+    parser.add_argument(
+        "--architecture",
+        choices=["pag_informer", "temporal_graph_quantile", "multi_scale_temporal_graph_quantile"],
+        default="pag_informer",
+    )
     parser.add_argument("--warm-start-checkpoint", default="")
     parser.add_argument("--use-cuda", type=parse_bool, default=True)
     parser.add_argument("--train", type=parse_bool, default=True)
@@ -459,6 +483,7 @@ def main() -> None:
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=1e-5)
     parser.add_argument("--seq-len", type=int, default=24)
+    parser.add_argument("--short-seq", type=int, default=24)
     parser.add_argument("--hidden-dim", type=int, default=128)
     parser.add_argument("--temporal-layers", type=int, default=1)
     parser.add_argument("--graph-layers", type=int, default=2)
@@ -558,10 +583,13 @@ def main() -> None:
         "architecture": args.architecture,
         "load_method": load_method,
         "seq_len": args.seq_len,
+        "short_seq": args.short_seq,
         "hidden_dim": args.hidden_dim,
         "temporal_layers": args.temporal_layers,
         "graph_layers": args.graph_layers,
         "dropout": args.dropout,
+        "learning_rate": args.learning_rate,
+        "weight_decay": args.weight_decay,
         "horizons": horizons,
         "horizon_loss_weights": horizon_loss_weights,
         "quantiles": quantiles,
