@@ -285,6 +285,23 @@ def build_model(
             f"dropout={args.dropout}"
             ").to(device)"
         )
+    elif args.architecture == "lstm_quantile":
+        model = models.LSTMMultiHorizonQuantile(
+            a_sparse=adj_sparse,
+            seq=args.seq_len,
+            hidden_dim=args.hidden_dim,
+            quantiles=quantiles,
+            horizons=horizons,
+            temporal_layers=args.temporal_layers,
+            dropout=args.dropout,
+        ).to(device)
+        load_method = (
+            "models.LSTMMultiHorizonQuantile("
+            f"a_sparse=adj_sparse, seq={args.seq_len}, hidden_dim={args.hidden_dim}, "
+            "quantiles=quantiles, horizons=horizons, "
+            f"temporal_layers={args.temporal_layers}, dropout={args.dropout}"
+            ").to(device)"
+        )
     elif args.architecture == "multi_scale_temporal_graph_quantile":
         model = models.MultiScaleTemporalGraphQuantile(
             a_sparse=adj_sparse,
@@ -472,7 +489,12 @@ def main() -> None:
     parser.add_argument("--load-method", default="")
     parser.add_argument(
         "--architecture",
-        choices=["pag_informer", "temporal_graph_quantile", "multi_scale_temporal_graph_quantile"],
+        choices=[
+            "pag_informer",
+            "temporal_graph_quantile",
+            "lstm_quantile",
+            "multi_scale_temporal_graph_quantile",
+        ],
         default="pag_informer",
     )
     parser.add_argument("--warm-start-checkpoint", default="")

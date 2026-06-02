@@ -200,6 +200,58 @@ def test_stage1_build_model_can_select_temporal_graph_quantile():
     assert "TemporalGraphQuantile" in load_method
 
 
+def test_lstm_multi_horizon_quantile_output_shape_ordering_and_batch_safety():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model = models.LSTMMultiHorizonQuantile(
+        seq=6,
+        hidden_dim=8,
+        quantiles=[0.1, 0.5, 0.9],
+        horizons=[1, 3],
+        dropout=0.0,
+    ).to(device)
+    model.eval()
+
+    occ = torch.rand(2, 3, 6, device=device)
+    prc = torch.rand(2, 3, 6, device=device)
+    with torch.no_grad():
+        pred_batch = model(occ, prc)
+        pred_single = model(occ[:1], prc[:1])
+
+    assert pred_batch.shape == (2, 3, 2, 3)
+    assert torch.all(pred_batch[..., 1:] >= pred_batch[..., :-1])
+    assert pred_batch[..., -1].max().item() < 0.25
+    assert torch.allclose(pred_batch[:1], pred_single, atol=1e-6)
+
+
+def test_stage1_build_model_can_select_lstm_quantile():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    adjacency = torch.eye(3, dtype=torch.float32, device=device).to_sparse()
+    args = SimpleNamespace(
+        architecture="lstm_quantile",
+        dropout=0.0,
+        freeze_gat_heads=False,
+        graph_layers=1,
+        hidden_dim=16,
+        load_method="",
+        seq_len=6,
+        short_seq=3,
+        temporal_layers=1,
+        transformer_batch_first=True,
+    )
+
+    model, load_method = build_model(
+        args=args,
+        adj_sparse=adjacency,
+        quantiles=[0.1, 0.5, 0.9],
+        horizons=[1, 3],
+        device=device,
+    )
+
+    assert isinstance(model, models.LSTMMultiHorizonQuantile)
+    assert model.hidden_dim == 16
+    assert "LSTMMultiHorizonQuantile" in load_method
+
+
 def test_multi_scale_temporal_graph_quantile_output_shape_ordering_and_batch_safety():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     adjacency = torch.tensor(

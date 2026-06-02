@@ -1521,6 +1521,100 @@ class TemporalGraphQuantile(nn.Module):
         return quantiles
 
 
+class LSTMMultiHorizonQuantile(nn.Module):
+    """
+    Node-independent LSTM baseline for multi-horizon quantile forecasting.
+
+    Each node is encoded independently from its demand and price history. The
+    model intentionally avoids graph diffusion so it can serve as a clean
+    temporal-only baseline against graph-aware TGQ variants.
+    """
+    def __init__(
+        self,
+        a_sparse=None,
+        seq=48,
+        hidden_dim=128,
+        quantiles=None,
+        horizons=None,
+        input_features=2,
+        temporal_layers=1,
+        dropout=0.1,
+    ):
+        super().__init__()
+
+        if quantiles is None:
+            quantiles = [0.05, 0.1, 0.2, 0.5, 0.8, 0.9, 0.95]
+        if horizons is None:
+            horizons = [1]
+
+        self.quantiles = [float(q) for q in quantiles]
+        self.Q = len(self.quantiles)
+        self.horizons = [int(h) for h in horizons]
+        self.H = len(self.horizons)
+        self.seq = seq
+        self.hidden_dim = hidden_dim
+
+        self.feature_proj = nn.Sequential(
+            nn.Linear(input_features, hidden_dim),
+            nn.GELU(),
+            nn.LayerNorm(hidden_dim),
+        )
+        self.temporal_encoder = nn.LSTM(
+            input_size=hidden_dim,
+            hidden_size=hidden_dim,
+            num_layers=temporal_layers,
+            batch_first=True,
+            dropout=dropout if temporal_layers > 1 else 0.0,
+        )
+        self.temporal_norm = nn.LayerNorm(hidden_dim)
+        self.horizon_embedding = nn.Embedding(self.H, hidden_dim)
+        self.quantile_head = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, self.Q),
+        )
+        self.softplus = nn.Softplus()
+        self._reset_quantile_head()
+
+    @staticmethod
+    def _softplus_inverse(value: torch.Tensor) -> torch.Tensor:
+        return torch.log(torch.expm1(value).clamp_min(1e-8))
+
+    def _reset_quantile_head(self) -> None:
+        last_layer = self.quantile_head[-1]
+        nn.init.zeros_(last_layer.weight)
+
+        quantiles = torch.tensor(self.quantiles, dtype=torch.float32)
+        initial_curve = 0.02 + 0.18 * quantiles
+        increments = torch.empty_like(initial_curve)
+        increments[0] = initial_curve[0]
+        increments[1:] = initial_curve[1:] - initial_curve[:-1]
+        with torch.no_grad():
+            last_layer.bias.copy_(self._softplus_inverse(increments))
+
+    def forward(self, occ, prc):
+        b, n, s = occ.shape
+        x = torch.stack([occ, prc], dim=-1)  # (B,N,S,2)
+        x = self.feature_proj(x)
+        x = x.reshape(b * n, s, -1)
+
+        _, (h, _) = self.temporal_encoder(x)
+        h = self.temporal_norm(h[-1].view(b, n, self.hidden_dim))
+
+        horizon_ids = torch.arange(self.H, device=h.device)
+        horizon_h = h.unsqueeze(2) + self.horizon_embedding(horizon_ids).view(1, 1, self.H, -1)
+        raw_q = self.quantile_head(horizon_h)
+
+        base = self.softplus(raw_q[..., 0:1])
+        increments = self.softplus(raw_q[..., 1:])
+        quantiles = torch.cat(
+            [base, base + torch.cumsum(increments, dim=-1)],
+            dim=-1,
+        )
+        return quantiles
+
+
 class MultiScaleTemporalGraphQuantile(nn.Module):
     """
     Multi-scale extension of TemporalGraphQuantile.
