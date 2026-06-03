@@ -1615,6 +1615,210 @@ class LSTMMultiHorizonQuantile(nn.Module):
         return quantiles
 
 
+class NLinearQuantile(nn.Module):
+    """
+    Node-independent NLinear-style baseline for multi-horizon quantile forecasting.
+
+    The input is normalized by subtracting the latest demand/price observation
+    before a linear encoder maps each feature history into the latent space.
+    """
+    def __init__(
+        self,
+        a_sparse=None,
+        seq=48,
+        hidden_dim=128,
+        quantiles=None,
+        horizons=None,
+        input_features=2,
+        dropout=0.1,
+    ):
+        super().__init__()
+
+        if quantiles is None:
+            quantiles = [0.05, 0.1, 0.2, 0.5, 0.8, 0.9, 0.95]
+        if horizons is None:
+            horizons = [1]
+
+        self.quantiles = [float(q) for q in quantiles]
+        self.Q = len(self.quantiles)
+        self.horizons = [int(h) for h in horizons]
+        self.H = len(self.horizons)
+        self.seq = int(seq)
+        self.hidden_dim = hidden_dim
+        self.input_features = input_features
+
+        self.feature_linears = nn.ModuleList([
+            nn.Linear(self.seq, hidden_dim) for _ in range(input_features)
+        ])
+        self.feature_fusion = nn.Sequential(
+            nn.Linear(hidden_dim * input_features, hidden_dim),
+            nn.GELU(),
+            nn.LayerNorm(hidden_dim),
+            nn.Dropout(dropout),
+        )
+        self.horizon_embedding = nn.Embedding(self.H, hidden_dim)
+        self.quantile_head = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, self.Q),
+        )
+        self.softplus = nn.Softplus()
+        self._reset_quantile_head()
+
+    @staticmethod
+    def _softplus_inverse(value: torch.Tensor) -> torch.Tensor:
+        return torch.log(torch.expm1(value).clamp_min(1e-8))
+
+    def _reset_quantile_head(self) -> None:
+        last_layer = self.quantile_head[-1]
+        nn.init.zeros_(last_layer.weight)
+
+        quantiles = torch.tensor(self.quantiles, dtype=torch.float32)
+        initial_curve = 0.02 + 0.18 * quantiles
+        increments = torch.empty_like(initial_curve)
+        increments[0] = initial_curve[0]
+        increments[1:] = initial_curve[1:] - initial_curve[:-1]
+        with torch.no_grad():
+            last_layer.bias.copy_(self._softplus_inverse(increments))
+
+    def forward(self, occ, prc):
+        b, n, s = occ.shape
+        if s != self.seq:
+            raise ValueError(f"NLinearQuantile expected seq={self.seq}, got {s}")
+
+        x = torch.stack([occ, prc], dim=-1)
+        x = x - x[:, :, -1:, :]
+        features = [
+            linear(x[..., feature_idx].reshape(b * n, s))
+            for feature_idx, linear in enumerate(self.feature_linears)
+        ]
+        h = self.feature_fusion(torch.cat(features, dim=-1)).view(b, n, self.hidden_dim)
+
+        horizon_ids = torch.arange(self.H, device=h.device)
+        horizon_h = h.unsqueeze(2) + self.horizon_embedding(horizon_ids).view(1, 1, self.H, -1)
+        raw_q = self.quantile_head(horizon_h)
+
+        base = self.softplus(raw_q[..., 0:1])
+        increments = self.softplus(raw_q[..., 1:])
+        quantiles = torch.cat(
+            [base, base + torch.cumsum(increments, dim=-1)],
+            dim=-1,
+        )
+        return quantiles
+
+
+class DLinearQuantile(nn.Module):
+    """
+    Node-independent DLinear-style baseline with moving-average decomposition.
+
+    Demand and price histories are decomposed into trend and residual seasonal
+    components, then encoded with lightweight linear projections.
+    """
+    def __init__(
+        self,
+        a_sparse=None,
+        seq=48,
+        hidden_dim=128,
+        quantiles=None,
+        horizons=None,
+        input_features=2,
+        moving_avg=7,
+        dropout=0.1,
+    ):
+        super().__init__()
+
+        if quantiles is None:
+            quantiles = [0.05, 0.1, 0.2, 0.5, 0.8, 0.9, 0.95]
+        if horizons is None:
+            horizons = [1]
+
+        self.quantiles = [float(q) for q in quantiles]
+        self.Q = len(self.quantiles)
+        self.horizons = [int(h) for h in horizons]
+        self.H = len(self.horizons)
+        self.seq = int(seq)
+        self.hidden_dim = hidden_dim
+        self.input_features = input_features
+        self.moving_avg = max(1, int(moving_avg))
+
+        self.trend_linears = nn.ModuleList([
+            nn.Linear(self.seq, hidden_dim) for _ in range(input_features)
+        ])
+        self.seasonal_linears = nn.ModuleList([
+            nn.Linear(self.seq, hidden_dim) for _ in range(input_features)
+        ])
+        self.feature_fusion = nn.Sequential(
+            nn.Linear(hidden_dim * input_features, hidden_dim),
+            nn.GELU(),
+            nn.LayerNorm(hidden_dim),
+            nn.Dropout(dropout),
+        )
+        self.horizon_embedding = nn.Embedding(self.H, hidden_dim)
+        self.quantile_head = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, self.Q),
+        )
+        self.softplus = nn.Softplus()
+        self._reset_quantile_head()
+
+    @staticmethod
+    def _softplus_inverse(value: torch.Tensor) -> torch.Tensor:
+        return torch.log(torch.expm1(value).clamp_min(1e-8))
+
+    def _reset_quantile_head(self) -> None:
+        last_layer = self.quantile_head[-1]
+        nn.init.zeros_(last_layer.weight)
+
+        quantiles = torch.tensor(self.quantiles, dtype=torch.float32)
+        initial_curve = 0.02 + 0.18 * quantiles
+        increments = torch.empty_like(initial_curve)
+        increments[0] = initial_curve[0]
+        increments[1:] = initial_curve[1:] - initial_curve[:-1]
+        with torch.no_grad():
+            last_layer.bias.copy_(self._softplus_inverse(increments))
+
+    def _moving_average(self, x: torch.Tensor) -> torch.Tensor:
+        if self.moving_avg <= 1:
+            return x
+        pad_left = (self.moving_avg - 1) // 2
+        pad_right = self.moving_avg - 1 - pad_left
+        x = F.pad(x, (pad_left, pad_right), mode="replicate")
+        return F.avg_pool1d(x, kernel_size=self.moving_avg, stride=1)
+
+    def forward(self, occ, prc):
+        b, n, s = occ.shape
+        if s != self.seq:
+            raise ValueError(f"DLinearQuantile expected seq={self.seq}, got {s}")
+
+        x = torch.stack([occ, prc], dim=-1)
+        trend_features = []
+        for feature_idx in range(self.input_features):
+            feature = x[..., feature_idx].reshape(b * n, 1, s)
+            trend = self._moving_average(feature).squeeze(1)
+            seasonal = feature.squeeze(1) - trend
+            encoded = (
+                self.trend_linears[feature_idx](trend)
+                + self.seasonal_linears[feature_idx](seasonal)
+            )
+            trend_features.append(encoded)
+        h = self.feature_fusion(torch.cat(trend_features, dim=-1)).view(b, n, self.hidden_dim)
+
+        horizon_ids = torch.arange(self.H, device=h.device)
+        horizon_h = h.unsqueeze(2) + self.horizon_embedding(horizon_ids).view(1, 1, self.H, -1)
+        raw_q = self.quantile_head(horizon_h)
+
+        base = self.softplus(raw_q[..., 0:1])
+        increments = self.softplus(raw_q[..., 1:])
+        quantiles = torch.cat(
+            [base, base + torch.cumsum(increments, dim=-1)],
+            dim=-1,
+        )
+        return quantiles
+
+
 class PatchTSTQuantile(nn.Module):
     """
     Channel-independent PatchTST-style baseline with a monotonic quantile head.

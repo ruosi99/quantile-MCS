@@ -325,6 +325,38 @@ def build_model(
             f"ff_dim={args.ff_dim or None}, dropout={args.dropout}"
             ").to(device)"
         )
+    elif args.architecture == "nlinear_quantile":
+        model = models.NLinearQuantile(
+            a_sparse=adj_sparse,
+            seq=args.seq_len,
+            hidden_dim=args.hidden_dim,
+            quantiles=quantiles,
+            horizons=horizons,
+            dropout=args.dropout,
+        ).to(device)
+        load_method = (
+            "models.NLinearQuantile("
+            f"a_sparse=adj_sparse, seq={args.seq_len}, hidden_dim={args.hidden_dim}, "
+            f"quantiles=quantiles, horizons=horizons, dropout={args.dropout}"
+            ").to(device)"
+        )
+    elif args.architecture == "dlinear_quantile":
+        model = models.DLinearQuantile(
+            a_sparse=adj_sparse,
+            seq=args.seq_len,
+            hidden_dim=args.hidden_dim,
+            quantiles=quantiles,
+            horizons=horizons,
+            moving_avg=args.moving_avg,
+            dropout=args.dropout,
+        ).to(device)
+        load_method = (
+            "models.DLinearQuantile("
+            f"a_sparse=adj_sparse, seq={args.seq_len}, hidden_dim={args.hidden_dim}, "
+            "quantiles=quantiles, horizons=horizons, "
+            f"moving_avg={args.moving_avg}, dropout={args.dropout}"
+            ").to(device)"
+        )
     elif args.architecture == "multi_scale_temporal_graph_quantile":
         model = models.MultiScaleTemporalGraphQuantile(
             a_sparse=adj_sparse,
@@ -517,6 +549,8 @@ def main() -> None:
             "temporal_graph_quantile",
             "lstm_quantile",
             "patchtst_quantile",
+            "nlinear_quantile",
+            "dlinear_quantile",
             "multi_scale_temporal_graph_quantile",
         ],
         default="pag_informer",
@@ -535,6 +569,7 @@ def main() -> None:
     parser.add_argument("--graph-layers", type=int, default=2)
     parser.add_argument("--patch-len", type=int, default=8)
     parser.add_argument("--patch-stride", type=int, default=4)
+    parser.add_argument("--moving-avg", type=int, default=7)
     parser.add_argument("--transformer-layers", type=int, default=3)
     parser.add_argument("--attention-heads", type=int, default=4)
     parser.add_argument("--ff-dim", type=int, default=0)
@@ -640,6 +675,7 @@ def main() -> None:
         "graph_layers": args.graph_layers,
         "patch_len": args.patch_len,
         "patch_stride": args.patch_stride,
+        "moving_avg": args.moving_avg,
         "transformer_layers": args.transformer_layers,
         "attention_heads": args.attention_heads,
         "ff_dim": args.ff_dim,

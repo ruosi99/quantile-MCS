@@ -252,6 +252,95 @@ def test_stage1_build_model_can_select_lstm_quantile():
     assert "LSTMMultiHorizonQuantile" in load_method
 
 
+def test_nlinear_quantile_output_shape_ordering_and_batch_safety():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model = models.NLinearQuantile(
+        seq=6,
+        hidden_dim=8,
+        quantiles=[0.1, 0.5, 0.9],
+        horizons=[1, 3],
+        dropout=0.0,
+    ).to(device)
+    model.eval()
+
+    occ = torch.rand(2, 3, 6, device=device)
+    prc = torch.rand(2, 3, 6, device=device)
+    with torch.no_grad():
+        pred_batch = model(occ, prc)
+        pred_single = model(occ[:1], prc[:1])
+
+    assert pred_batch.shape == (2, 3, 2, 3)
+    assert torch.all(pred_batch[..., 1:] >= pred_batch[..., :-1])
+    assert pred_batch[..., -1].max().item() < 0.25
+    assert torch.allclose(pred_batch[:1], pred_single, atol=1e-6)
+
+
+def test_dlinear_quantile_output_shape_ordering_and_batch_safety():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model = models.DLinearQuantile(
+        seq=6,
+        hidden_dim=8,
+        quantiles=[0.1, 0.5, 0.9],
+        horizons=[1, 3],
+        moving_avg=3,
+        dropout=0.0,
+    ).to(device)
+    model.eval()
+
+    occ = torch.rand(2, 3, 6, device=device)
+    prc = torch.rand(2, 3, 6, device=device)
+    with torch.no_grad():
+        pred_batch = model(occ, prc)
+        pred_single = model(occ[:1], prc[:1])
+
+    assert pred_batch.shape == (2, 3, 2, 3)
+    assert torch.all(pred_batch[..., 1:] >= pred_batch[..., :-1])
+    assert pred_batch[..., -1].max().item() < 0.25
+    assert torch.allclose(pred_batch[:1], pred_single, atol=1e-6)
+
+
+def test_stage1_build_model_can_select_linear_quantile_baselines():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    adjacency = torch.eye(3, dtype=torch.float32, device=device).to_sparse()
+    common = dict(
+        dropout=0.0,
+        freeze_gat_heads=False,
+        graph_layers=1,
+        hidden_dim=16,
+        load_method="",
+        moving_avg=3,
+        patch_len=4,
+        patch_stride=2,
+        seq_len=6,
+        short_seq=3,
+        temporal_layers=1,
+        transformer_batch_first=True,
+    )
+
+    nlinear_args = SimpleNamespace(architecture="nlinear_quantile", **common)
+    nlinear, nlinear_load_method = build_model(
+        args=nlinear_args,
+        adj_sparse=adjacency,
+        quantiles=[0.1, 0.5, 0.9],
+        horizons=[1, 3],
+        device=device,
+    )
+
+    dlinear_args = SimpleNamespace(architecture="dlinear_quantile", **common)
+    dlinear, dlinear_load_method = build_model(
+        args=dlinear_args,
+        adj_sparse=adjacency,
+        quantiles=[0.1, 0.5, 0.9],
+        horizons=[1, 3],
+        device=device,
+    )
+
+    assert isinstance(nlinear, models.NLinearQuantile)
+    assert isinstance(dlinear, models.DLinearQuantile)
+    assert "NLinearQuantile" in nlinear_load_method
+    assert "DLinearQuantile" in dlinear_load_method
+
+
 def test_patchtst_quantile_output_shape_ordering_and_batch_safety():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = models.PatchTSTQuantile(
