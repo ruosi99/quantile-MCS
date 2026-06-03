@@ -1615,6 +1615,132 @@ class LSTMMultiHorizonQuantile(nn.Module):
         return quantiles
 
 
+class PatchTSTQuantile(nn.Module):
+    """
+    Channel-independent PatchTST-style baseline with a monotonic quantile head.
+
+    Each node is encoded independently. Demand and price histories are split
+    into temporal patches, embedded as Transformer tokens, then decoded into
+    multi-horizon quantiles.
+    """
+    def __init__(
+        self,
+        a_sparse=None,
+        seq=48,
+        hidden_dim=128,
+        quantiles=None,
+        horizons=None,
+        input_features=2,
+        patch_len=8,
+        patch_stride=4,
+        transformer_layers=3,
+        attention_heads=4,
+        ff_dim=None,
+        dropout=0.1,
+    ):
+        super().__init__()
+
+        if quantiles is None:
+            quantiles = [0.05, 0.1, 0.2, 0.5, 0.8, 0.9, 0.95]
+        if horizons is None:
+            horizons = [1]
+
+        if hidden_dim % attention_heads != 0:
+            raise ValueError("PatchTSTQuantile hidden_dim must be divisible by attention_heads")
+
+        self.quantiles = [float(q) for q in quantiles]
+        self.Q = len(self.quantiles)
+        self.horizons = [int(h) for h in horizons]
+        self.H = len(self.horizons)
+        self.seq = int(seq)
+        self.hidden_dim = hidden_dim
+        self.patch_len = min(int(patch_len), self.seq)
+        self.patch_stride = max(1, int(patch_stride))
+        self.patch_count = 1 + max(0, (self.seq - self.patch_len) // self.patch_stride)
+
+        self.patch_proj = nn.Sequential(
+            nn.Linear(self.patch_len * input_features, hidden_dim),
+            nn.GELU(),
+            nn.LayerNorm(hidden_dim),
+        )
+        self.pos_embedding = nn.Parameter(torch.zeros(1, self.patch_count, hidden_dim))
+        nn.init.trunc_normal_(self.pos_embedding, std=0.02)
+
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=hidden_dim,
+            nhead=attention_heads,
+            dim_feedforward=ff_dim or hidden_dim * 4,
+            dropout=dropout,
+            activation="gelu",
+            batch_first=True,
+            norm_first=True,
+        )
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=transformer_layers)
+        self.flatten_head = nn.Sequential(
+            nn.Flatten(start_dim=1),
+            nn.Linear(self.patch_count * hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.LayerNorm(hidden_dim),
+        )
+        self.horizon_embedding = nn.Embedding(self.H, hidden_dim)
+        self.quantile_head = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, self.Q),
+        )
+        self.softplus = nn.Softplus()
+        self._reset_quantile_head()
+
+    @staticmethod
+    def _softplus_inverse(value: torch.Tensor) -> torch.Tensor:
+        return torch.log(torch.expm1(value).clamp_min(1e-8))
+
+    def _reset_quantile_head(self) -> None:
+        last_layer = self.quantile_head[-1]
+        nn.init.zeros_(last_layer.weight)
+
+        quantiles = torch.tensor(self.quantiles, dtype=torch.float32)
+        initial_curve = 0.02 + 0.18 * quantiles
+        increments = torch.empty_like(initial_curve)
+        increments[0] = initial_curve[0]
+        increments[1:] = initial_curve[1:] - initial_curve[:-1]
+        with torch.no_grad():
+            last_layer.bias.copy_(self._softplus_inverse(increments))
+
+    def forward(self, occ, prc):
+        b, n, s = occ.shape
+        x = torch.stack([occ, prc], dim=-1).reshape(b * n, s, -1)
+
+        if s < self.patch_len:
+            x = F.pad(x, (0, 0, self.patch_len - s, 0))
+
+        patches = x.unfold(dimension=1, size=self.patch_len, step=self.patch_stride)
+        patches = patches.transpose(-1, -2).reshape(b * n, -1, self.patch_len * x.shape[-1])
+        patch_count = patches.shape[1]
+        if patch_count != self.patch_count:
+            raise ValueError(
+                "PatchTSTQuantile received a sequence length that creates "
+                f"{patch_count} patches, but the model was initialized for {self.patch_count} patches"
+            )
+
+        tokens = self.patch_proj(patches) + self.pos_embedding
+        encoded = self.encoder(tokens)
+        h = self.flatten_head(encoded).view(b, n, self.hidden_dim)
+
+        horizon_ids = torch.arange(self.H, device=h.device)
+        horizon_h = h.unsqueeze(2) + self.horizon_embedding(horizon_ids).view(1, 1, self.H, -1)
+        raw_q = self.quantile_head(horizon_h)
+
+        base = self.softplus(raw_q[..., 0:1])
+        increments = self.softplus(raw_q[..., 1:])
+        quantiles = torch.cat(
+            [base, base + torch.cumsum(increments, dim=-1)],
+            dim=-1,
+        )
+        return quantiles
+
+
 class MultiScaleTemporalGraphQuantile(nn.Module):
     """
     Multi-scale extension of TemporalGraphQuantile.

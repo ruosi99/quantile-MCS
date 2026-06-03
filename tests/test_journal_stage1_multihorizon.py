@@ -252,6 +252,68 @@ def test_stage1_build_model_can_select_lstm_quantile():
     assert "LSTMMultiHorizonQuantile" in load_method
 
 
+def test_patchtst_quantile_output_shape_ordering_and_batch_safety():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model = models.PatchTSTQuantile(
+        seq=8,
+        hidden_dim=8,
+        quantiles=[0.1, 0.5, 0.9],
+        horizons=[1, 3],
+        patch_len=4,
+        patch_stride=2,
+        transformer_layers=1,
+        attention_heads=2,
+        dropout=0.0,
+    ).to(device)
+    model.eval()
+
+    occ = torch.rand(2, 3, 8, device=device)
+    prc = torch.rand(2, 3, 8, device=device)
+    with torch.no_grad():
+        pred_batch = model(occ, prc)
+        pred_single = model(occ[:1], prc[:1])
+
+    assert pred_batch.shape == (2, 3, 2, 3)
+    assert torch.all(pred_batch[..., 1:] >= pred_batch[..., :-1])
+    assert pred_batch[..., -1].max().item() < 0.25
+    assert torch.allclose(pred_batch[:1], pred_single, atol=1e-6)
+
+
+def test_stage1_build_model_can_select_patchtst_quantile():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    adjacency = torch.eye(3, dtype=torch.float32, device=device).to_sparse()
+    args = SimpleNamespace(
+        architecture="patchtst_quantile",
+        attention_heads=2,
+        dropout=0.0,
+        ff_dim=0,
+        freeze_gat_heads=False,
+        graph_layers=1,
+        hidden_dim=16,
+        load_method="",
+        patch_len=4,
+        patch_stride=2,
+        seq_len=8,
+        short_seq=3,
+        temporal_layers=1,
+        transformer_batch_first=True,
+        transformer_layers=1,
+    )
+
+    model, load_method = build_model(
+        args=args,
+        adj_sparse=adjacency,
+        quantiles=[0.1, 0.5, 0.9],
+        horizons=[1, 3],
+        device=device,
+    )
+
+    assert isinstance(model, models.PatchTSTQuantile)
+    assert model.patch_len == 4
+    assert model.patch_stride == 2
+    assert "PatchTSTQuantile" in load_method
+
+
 def test_multi_scale_temporal_graph_quantile_output_shape_ordering_and_batch_safety():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     adjacency = torch.tensor(

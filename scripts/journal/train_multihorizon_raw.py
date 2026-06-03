@@ -302,6 +302,29 @@ def build_model(
             f"temporal_layers={args.temporal_layers}, dropout={args.dropout}"
             ").to(device)"
         )
+    elif args.architecture == "patchtst_quantile":
+        model = models.PatchTSTQuantile(
+            a_sparse=adj_sparse,
+            seq=args.seq_len,
+            hidden_dim=args.hidden_dim,
+            quantiles=quantiles,
+            horizons=horizons,
+            patch_len=args.patch_len,
+            patch_stride=args.patch_stride,
+            transformer_layers=args.transformer_layers,
+            attention_heads=args.attention_heads,
+            ff_dim=args.ff_dim or None,
+            dropout=args.dropout,
+        ).to(device)
+        load_method = (
+            "models.PatchTSTQuantile("
+            f"a_sparse=adj_sparse, seq={args.seq_len}, hidden_dim={args.hidden_dim}, "
+            "quantiles=quantiles, horizons=horizons, "
+            f"patch_len={args.patch_len}, patch_stride={args.patch_stride}, "
+            f"transformer_layers={args.transformer_layers}, attention_heads={args.attention_heads}, "
+            f"ff_dim={args.ff_dim or None}, dropout={args.dropout}"
+            ").to(device)"
+        )
     elif args.architecture == "multi_scale_temporal_graph_quantile":
         model = models.MultiScaleTemporalGraphQuantile(
             a_sparse=adj_sparse,
@@ -493,6 +516,7 @@ def main() -> None:
             "pag_informer",
             "temporal_graph_quantile",
             "lstm_quantile",
+            "patchtst_quantile",
             "multi_scale_temporal_graph_quantile",
         ],
         default="pag_informer",
@@ -509,6 +533,11 @@ def main() -> None:
     parser.add_argument("--hidden-dim", type=int, default=128)
     parser.add_argument("--temporal-layers", type=int, default=1)
     parser.add_argument("--graph-layers", type=int, default=2)
+    parser.add_argument("--patch-len", type=int, default=8)
+    parser.add_argument("--patch-stride", type=int, default=4)
+    parser.add_argument("--transformer-layers", type=int, default=3)
+    parser.add_argument("--attention-heads", type=int, default=4)
+    parser.add_argument("--ff-dim", type=int, default=0)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--horizons", default=",".join(str(h) for h in DEFAULT_JOURNAL_HORIZONS))
     parser.add_argument("--horizon-loss-weights", default="")
@@ -609,6 +638,11 @@ def main() -> None:
         "hidden_dim": args.hidden_dim,
         "temporal_layers": args.temporal_layers,
         "graph_layers": args.graph_layers,
+        "patch_len": args.patch_len,
+        "patch_stride": args.patch_stride,
+        "transformer_layers": args.transformer_layers,
+        "attention_heads": args.attention_heads,
+        "ff_dim": args.ff_dim,
         "dropout": args.dropout,
         "learning_rate": args.learning_rate,
         "weight_decay": args.weight_decay,
