@@ -1615,6 +1615,169 @@ class LSTMMultiHorizonQuantile(nn.Module):
         return quantiles
 
 
+class TFTGatedResidualNetwork(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim=None, dropout=0.1):
+        super().__init__()
+        output_dim = output_dim or input_dim
+        self.linear1 = nn.Linear(input_dim, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, output_dim)
+        self.dropout = nn.Dropout(dropout)
+        self.gate = nn.Linear(output_dim, output_dim)
+        self.skip = nn.Identity() if input_dim == output_dim else nn.Linear(input_dim, output_dim)
+        self.norm = nn.LayerNorm(output_dim)
+
+    def forward(self, x):
+        residual = self.skip(x)
+        y = F.elu(self.linear1(x))
+        y = self.dropout(self.linear2(y))
+        y = torch.sigmoid(self.gate(y)) * y
+        return self.norm(residual + y)
+
+
+class TFTQuantile(nn.Module):
+    """
+    Temporal Fusion Transformer-style baseline for multi-horizon quantiles.
+
+    This adapts TFT's variable selection, recurrent temporal processing, static
+    enrichment, attention, and gated residual blocks to the repository's
+    node-wise demand/price tensors.
+    """
+    def __init__(
+        self,
+        a_sparse=None,
+        seq=48,
+        hidden_dim=128,
+        quantiles=None,
+        horizons=None,
+        input_features=2,
+        lstm_layers=1,
+        attention_heads=4,
+        ff_dim=None,
+        dropout=0.1,
+    ):
+        super().__init__()
+
+        if quantiles is None:
+            quantiles = [0.05, 0.1, 0.2, 0.5, 0.8, 0.9, 0.95]
+        if horizons is None:
+            horizons = [1]
+        if hidden_dim % attention_heads != 0:
+            raise ValueError("TFTQuantile hidden_dim must be divisible by attention_heads")
+
+        self.quantiles = [float(q) for q in quantiles]
+        self.Q = len(self.quantiles)
+        self.horizons = [int(h) for h in horizons]
+        self.H = len(self.horizons)
+        self.seq = int(seq)
+        self.hidden_dim = hidden_dim
+        self.input_features = input_features
+
+        self.feature_encoders = nn.ModuleList([
+            nn.Linear(1, hidden_dim) for _ in range(input_features)
+        ])
+        self.variable_selection = nn.Sequential(
+            nn.Linear(input_features, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, input_features),
+        )
+        node_count = int(a_sparse.shape[0]) if a_sparse is not None else 0
+        self.node_embedding = nn.Embedding(node_count, hidden_dim) if node_count > 0 else None
+
+        self.input_grn = TFTGatedResidualNetwork(hidden_dim, ff_dim or hidden_dim * 2, hidden_dim, dropout)
+        self.temporal_encoder = nn.LSTM(
+            input_size=hidden_dim,
+            hidden_size=hidden_dim,
+            num_layers=lstm_layers,
+            batch_first=True,
+            dropout=dropout if lstm_layers > 1 else 0.0,
+        )
+        self.static_enrichment = TFTGatedResidualNetwork(hidden_dim, ff_dim or hidden_dim * 2, hidden_dim, dropout)
+        self.temporal_attention = nn.MultiheadAttention(
+            embed_dim=hidden_dim,
+            num_heads=attention_heads,
+            dropout=dropout,
+            batch_first=True,
+        )
+        self.attention_norm = nn.LayerNorm(hidden_dim)
+        self.horizon_embedding = nn.Embedding(self.H, hidden_dim)
+        self.horizon_attention = nn.MultiheadAttention(
+            embed_dim=hidden_dim,
+            num_heads=attention_heads,
+            dropout=dropout,
+            batch_first=True,
+        )
+        self.output_grn = TFTGatedResidualNetwork(hidden_dim, ff_dim or hidden_dim * 2, hidden_dim, dropout)
+        self.quantile_head = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, self.Q),
+        )
+        self.softplus = nn.Softplus()
+        self._reset_quantile_head()
+
+    @staticmethod
+    def _softplus_inverse(value: torch.Tensor) -> torch.Tensor:
+        return torch.log(torch.expm1(value).clamp_min(1e-8))
+
+    def _reset_quantile_head(self) -> None:
+        last_layer = self.quantile_head[-1]
+        nn.init.zeros_(last_layer.weight)
+
+        quantiles = torch.tensor(self.quantiles, dtype=torch.float32)
+        initial_curve = 0.02 + 0.18 * quantiles
+        increments = torch.empty_like(initial_curve)
+        increments[0] = initial_curve[0]
+        increments[1:] = initial_curve[1:] - initial_curve[:-1]
+        with torch.no_grad():
+            last_layer.bias.copy_(self._softplus_inverse(increments))
+
+    def _static_context(self, batch_size: int, node_count: int, device: torch.device) -> torch.Tensor:
+        if self.node_embedding is None:
+            return torch.zeros(batch_size, node_count, self.hidden_dim, device=device)
+        node_ids = torch.arange(node_count, device=device)
+        node_context = self.node_embedding(node_ids)
+        return node_context.unsqueeze(0).expand(batch_size, -1, -1)
+
+    def forward(self, occ, prc):
+        b, n, s = occ.shape
+        if s != self.seq:
+            raise ValueError(f"TFTQuantile expected seq={self.seq}, got {s}")
+
+        x = torch.stack([occ, prc], dim=-1).reshape(b * n, s, self.input_features)
+        weights = torch.softmax(self.variable_selection(x), dim=-1).unsqueeze(-1)
+        encoded_features = torch.stack(
+            [encoder(x[..., idx:idx + 1]) for idx, encoder in enumerate(self.feature_encoders)],
+            dim=2,
+        )
+        selected = (weights * encoded_features).sum(dim=2)
+        selected = self.input_grn(selected)
+
+        static_context = self._static_context(b, n, occ.device)
+        static_flat = static_context.reshape(b * n, self.hidden_dim)
+        selected = selected + static_flat.unsqueeze(1)
+
+        temporal, _ = self.temporal_encoder(selected)
+        temporal = self.static_enrichment(temporal + static_flat.unsqueeze(1))
+        attended, _ = self.temporal_attention(temporal, temporal, temporal, need_weights=False)
+        temporal = self.attention_norm(temporal + attended)
+
+        horizon_ids = torch.arange(self.H, device=occ.device)
+        horizon_queries = self.horizon_embedding(horizon_ids).view(1, self.H, self.hidden_dim)
+        horizon_queries = horizon_queries.expand(b * n, -1, -1) + static_flat.unsqueeze(1)
+        decoded, _ = self.horizon_attention(horizon_queries, temporal, temporal, need_weights=False)
+        decoded = self.output_grn(decoded).view(b, n, self.H, self.hidden_dim)
+
+        raw_q = self.quantile_head(decoded)
+        base = self.softplus(raw_q[..., 0:1])
+        increments = self.softplus(raw_q[..., 1:])
+        quantiles = torch.cat(
+            [base, base + torch.cumsum(increments, dim=-1)],
+            dim=-1,
+        )
+        return quantiles
+
+
 class NLinearQuantile(nn.Module):
     """
     Node-independent NLinear-style baseline for multi-horizon quantile forecasting.

@@ -352,6 +352,26 @@ def build_model(
             f"temporal_layers={args.temporal_layers}, dropout={args.dropout}"
             ").to(device)"
         )
+    elif args.architecture == "tft_quantile":
+        model = models.TFTQuantile(
+            a_sparse=adj_sparse,
+            seq=args.seq_len,
+            hidden_dim=args.hidden_dim,
+            quantiles=quantiles,
+            horizons=horizons,
+            lstm_layers=args.temporal_layers,
+            attention_heads=args.attention_heads,
+            ff_dim=args.ff_dim or None,
+            dropout=args.dropout,
+        ).to(device)
+        load_method = (
+            "models.TFTQuantile("
+            f"a_sparse=adj_sparse, seq={args.seq_len}, hidden_dim={args.hidden_dim}, "
+            "quantiles=quantiles, horizons=horizons, "
+            f"lstm_layers={args.temporal_layers}, attention_heads={args.attention_heads}, "
+            f"ff_dim={args.ff_dim or None}, dropout={args.dropout}"
+            ").to(device)"
+        )
     elif args.architecture == "patchtst_quantile":
         model = models.PatchTSTQuantile(
             a_sparse=adj_sparse,
@@ -620,6 +640,7 @@ def main() -> None:
             "pag_informer",
             "temporal_graph_quantile",
             "lstm_quantile",
+            "tft_quantile",
             "patchtst_quantile",
             "nlinear_quantile",
             "dlinear_quantile",
