@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import subprocess
 import sys
@@ -38,6 +39,12 @@ def parse_bool(value: str | bool) -> bool:
     if isinstance(value, bool):
         return value
     return value.strip().lower() in {"1", "true", "yes", "y"}
+
+
+def parse_optional_bool(value: str | bool | None) -> bool | None:
+    if value is None or value == "":
+        return None
+    return parse_bool(value)
 
 
 def parse_float_list(value: str) -> list[float]:
@@ -175,6 +182,49 @@ def quantile_crossing_metrics(pred_q: np.ndarray) -> dict[str, float]:
         "mean_crossed_pairs": float(crossing_mask.sum(axis=-1).mean()),
         "max_crossing_magnitude": float(np.maximum(-diffs, 0.0).max()),
     }
+
+
+def write_q50_long_csv(
+    output_path: Path,
+    point_pred: np.ndarray,
+    labels: np.ndarray,
+    horizons: list[int],
+    chunk_windows: int,
+) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    horizon_values = np.asarray(horizons, dtype=np.int32)
+    n_windows, n_nodes, n_horizons = point_pred.shape
+    chunk_windows = max(1, int(chunk_windows))
+
+    with gzip.open(output_path, "wt", newline="", encoding="utf-8") as handle:
+        wrote_header = False
+        node_grid = np.broadcast_to(
+            np.arange(n_nodes, dtype=np.int32).reshape(1, n_nodes, 1),
+            (1, n_nodes, n_horizons),
+        )
+        horizon_grid = np.broadcast_to(
+            horizon_values.reshape(1, 1, n_horizons),
+            (1, n_nodes, n_horizons),
+        )
+
+        for start in range(0, n_windows, chunk_windows):
+            end = min(start + chunk_windows, n_windows)
+            window_count = end - start
+            window_grid = np.broadcast_to(
+                np.arange(start, end, dtype=np.int32).reshape(window_count, 1, 1),
+                (window_count, n_nodes, n_horizons),
+            )
+            chunk_node_grid = np.broadcast_to(node_grid, (window_count, n_nodes, n_horizons))
+            chunk_horizon_grid = np.broadcast_to(horizon_grid, (window_count, n_nodes, n_horizons))
+            chunk = pd.DataFrame({
+                "window_index": window_grid.ravel(),
+                "node_index": chunk_node_grid.ravel(),
+                "horizon": chunk_horizon_grid.ravel(),
+                "y_true": labels[start:end].ravel(),
+                "y_pred_q50": point_pred[start:end].ravel(),
+            })
+            chunk.to_csv(handle, index=False, header=not wrote_header)
+            wrote_header = True
 
 
 def limited_loader(loader: DataLoader, max_batches: int):
@@ -441,7 +491,15 @@ def evaluate_model(
     model_name: str,
     max_test_batches: int,
     save_arrays: bool,
+    save_quantile_arrays: bool | None = None,
+    save_point_arrays: bool | None = None,
+    export_long_q50: bool = False,
+    long_export_prefix: str = "friend_predictions",
+    long_export_chunk_windows: int = 8,
 ) -> dict[str, object]:
+    save_quantile_arrays = save_arrays if save_quantile_arrays is None else save_quantile_arrays
+    save_point_arrays = save_arrays if save_point_arrays is None else save_point_arrays
+
     model.eval()
     predict_list = []
     label_list = []
@@ -477,15 +535,26 @@ def evaluate_model(
     point_pred = predict_q[..., q50_idx]
 
     array_files = {}
-    if save_arrays:
+    if save_quantile_arrays:
         np.save(output_dir / "predict_quantiles.npy", predict_q)
+        array_files["predict_quantiles_file"] = "predict_quantiles.npy"
+    if save_point_arrays:
         np.save(output_dir / "label_list.npy", labels)
         np.save(output_dir / "predict_point_q50.npy", point_pred)
-        array_files = {
-            "predict_quantiles_file": "predict_quantiles.npy",
-            "label_file": "label_list.npy",
-            "predict_point_q50_file": "predict_point_q50.npy",
-        }
+        array_files["label_file"] = "label_list.npy"
+        array_files["predict_point_q50_file"] = "predict_point_q50.npy"
+
+    export_files = {}
+    if export_long_q50:
+        q50_long_file = f"{long_export_prefix}_q50_long.csv.gz"
+        write_q50_long_csv(
+            output_dir / q50_long_file,
+            point_pred=point_pred,
+            labels=labels,
+            horizons=horizons,
+            chunk_windows=long_export_chunk_windows,
+        )
+        export_files["q50_long_file"] = q50_long_file
 
     point_rows = []
     crossing_rows = []
@@ -531,7 +600,10 @@ def evaluate_model(
         "raw_interval_metrics_file": "raw_interval_metrics_by_horizon.csv",
         "crossing_metrics_file": "quantile_crossing_metrics_by_horizon.csv",
         "arrays_saved": save_arrays,
+        "quantile_arrays_saved": save_quantile_arrays,
+        "point_arrays_saved": save_point_arrays,
         "array_files": array_files,
+        "export_files": export_files,
         "model_name": model_name,
     }
 
@@ -575,6 +647,7 @@ def main() -> None:
     parser.add_argument("--ff-dim", type=int, default=0)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--horizons", default=",".join(str(h) for h in DEFAULT_JOURNAL_HORIZONS))
+    parser.add_argument("--horizon-range", type=int, default=0)
     parser.add_argument("--horizon-loss-weights", default="")
     parser.add_argument("--quantiles", default=",".join(f"{q:.12g}" for q in DEFAULT_JOURNAL_QUANTILES))
     parser.add_argument("--max-train-batches", type=int, default=0)
@@ -583,9 +656,14 @@ def main() -> None:
     parser.add_argument("--freeze-gat-heads", type=parse_bool, default=False)
     parser.add_argument("--transformer-batch-first", type=parse_bool, default=True)
     parser.add_argument("--save-arrays", type=parse_bool, default=True)
+    parser.add_argument("--save-quantile-arrays", default="")
+    parser.add_argument("--save-point-arrays", default="")
+    parser.add_argument("--export-long-q50", type=parse_bool, default=False)
+    parser.add_argument("--long-export-prefix", default="friend_predictions")
+    parser.add_argument("--long-export-chunk-windows", type=int, default=8)
     args = parser.parse_args()
 
-    horizons = parse_int_list(args.horizons)
+    horizons = list(range(1, args.horizon_range + 1)) if args.horizon_range > 0 else parse_int_list(args.horizons)
     horizon_loss_weights = parse_float_list(args.horizon_loss_weights) if args.horizon_loss_weights else []
     if horizon_loss_weights and len(horizon_loss_weights) != len(horizons):
         raise ValueError(
@@ -593,6 +671,8 @@ def main() -> None:
             f"got {len(horizon_loss_weights)} weights for {len(horizons)} horizons"
         )
     quantiles = parse_float_list(args.quantiles)
+    save_quantile_arrays = parse_optional_bool(args.save_quantile_arrays)
+    save_point_arrays = parse_optional_bool(args.save_point_arrays)
     output_dir = Path(args.output_dir)
     checkpoint_path = output_dir / f"{args.model_name}_checkpoint.pt"
 
@@ -655,6 +735,11 @@ def main() -> None:
         model_name=args.model_name,
         max_test_batches=args.max_test_batches,
         save_arrays=args.save_arrays,
+        save_quantile_arrays=save_quantile_arrays,
+        save_point_arrays=save_point_arrays,
+        export_long_q50=args.export_long_q50,
+        long_export_prefix=args.long_export_prefix,
+        long_export_chunk_windows=args.long_export_chunk_windows,
     )
 
     metadata = {
@@ -683,6 +768,7 @@ def main() -> None:
         "learning_rate": args.learning_rate,
         "weight_decay": args.weight_decay,
         "horizons": horizons,
+        "horizon_range": args.horizon_range,
         "horizon_loss_weights": horizon_loss_weights,
         "quantiles": quantiles,
         "batch_size": args.batch_size,
@@ -690,6 +776,11 @@ def main() -> None:
         "freeze_gat_heads": args.freeze_gat_heads,
         "transformer_batch_first": args.transformer_batch_first,
         "save_arrays": args.save_arrays,
+        "save_quantile_arrays": save_quantile_arrays,
+        "save_point_arrays": save_point_arrays,
+        "export_long_q50": args.export_long_q50,
+        "long_export_prefix": args.long_export_prefix,
+        "long_export_chunk_windows": args.long_export_chunk_windows,
         "device": str(device),
         "cuda_available": bool(torch.cuda.is_available()),
         "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "",

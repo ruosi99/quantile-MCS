@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 import torch
 from torch.utils.data import DataLoader
@@ -540,3 +541,47 @@ def test_evaluate_model_can_skip_large_prediction_arrays(tmp_path):
     assert not (tmp_path / "predict_quantiles.npy").exists()
     assert not (tmp_path / "label_list.npy").exists()
     assert not (tmp_path / "predict_point_q50.npy").exists()
+
+
+def test_evaluate_model_can_export_friend_q50_long_csv_without_quantile_array(tmp_path):
+    occ = np.arange(30, dtype=np.float32).reshape(10, 3)
+    prc = occ + 1
+    dataset = CreateMultiHorizonDataset(occ, prc, seq_l=2, horizons=[1, 2], device=torch.device("cpu"))
+    loader = DataLoader(dataset, batch_size=2, shuffle=False, drop_last=False)
+    quantiles = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.833333333333, 0.9, 0.95]
+
+    report = evaluate_model(
+        model=_TinyQuantileModel(quantile_count=len(quantiles)),
+        test_loader=loader,
+        device=torch.device("cpu"),
+        cap=np.ones((1, 3), dtype=np.float32),
+        quantiles=quantiles,
+        horizons=[1, 2],
+        output_dir=tmp_path,
+        model_name="tiny",
+        max_test_batches=1,
+        save_arrays=False,
+        save_quantile_arrays=False,
+        save_point_arrays=True,
+        export_long_q50=True,
+        long_export_prefix="friend",
+        long_export_chunk_windows=1,
+    )
+
+    assert report["quantile_arrays_saved"] is False
+    assert report["point_arrays_saved"] is True
+    assert report["array_files"] == {
+        "label_file": "label_list.npy",
+        "predict_point_q50_file": "predict_point_q50.npy",
+    }
+    assert report["export_files"] == {"q50_long_file": "friend_q50_long.csv.gz"}
+    assert (tmp_path / "label_list.npy").exists()
+    assert (tmp_path / "predict_point_q50.npy").exists()
+    assert not (tmp_path / "predict_quantiles.npy").exists()
+
+    exported = pd.read_csv(tmp_path / "friend_q50_long.csv.gz")
+    assert exported.columns.tolist() == ["window_index", "node_index", "horizon", "y_true", "y_pred_q50"]
+    assert len(exported) == 2 * 3 * 2
+    assert exported["window_index"].max() == 1
+    assert exported["node_index"].max() == 2
+    assert exported["horizon"].tolist()[:2] == [1, 2]
