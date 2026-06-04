@@ -1619,8 +1619,8 @@ class NLinearQuantile(nn.Module):
     """
     Node-independent NLinear-style baseline for multi-horizon quantile forecasting.
 
-    The input is normalized by subtracting the latest demand/price observation
-    before a linear encoder maps each feature history into the latent space.
+    The input is normalized by subtracting the latest demand/price observation,
+    then residual quantiles are added back to the latest demand level.
     """
     def __init__(
         self,
@@ -1675,18 +1675,21 @@ class NLinearQuantile(nn.Module):
         nn.init.zeros_(last_layer.weight)
 
         quantiles = torch.tensor(self.quantiles, dtype=torch.float32)
-        initial_curve = 0.02 + 0.18 * quantiles
-        increments = torch.empty_like(initial_curve)
-        increments[0] = initial_curve[0]
-        increments[1:] = initial_curve[1:] - initial_curve[:-1]
+        initial_curve = 0.18 * (quantiles - 0.5)
+        bias = torch.empty_like(initial_curve)
+        bias[0] = initial_curve[0]
+        if len(initial_curve) > 1:
+            increments = initial_curve[1:] - initial_curve[:-1]
+            bias[1:] = self._softplus_inverse(increments)
         with torch.no_grad():
-            last_layer.bias.copy_(self._softplus_inverse(increments))
+            last_layer.bias.copy_(bias)
 
     def forward(self, occ, prc):
         b, n, s = occ.shape
         if s != self.seq:
             raise ValueError(f"NLinearQuantile expected seq={self.seq}, got {s}")
 
+        last_demand = occ[:, :, -1].view(b, n, 1, 1)
         x = torch.stack([occ, prc], dim=-1)
         x = x - x[:, :, -1:, :]
         features = [
@@ -1699,13 +1702,13 @@ class NLinearQuantile(nn.Module):
         horizon_h = h.unsqueeze(2) + self.horizon_embedding(horizon_ids).view(1, 1, self.H, -1)
         raw_q = self.quantile_head(horizon_h)
 
-        base = self.softplus(raw_q[..., 0:1])
+        base = raw_q[..., 0:1]
         increments = self.softplus(raw_q[..., 1:])
-        quantiles = torch.cat(
+        residual_quantiles = torch.cat(
             [base, base + torch.cumsum(increments, dim=-1)],
             dim=-1,
         )
-        return quantiles
+        return residual_quantiles + last_demand
 
 
 class DLinearQuantile(nn.Module):

@@ -272,7 +272,8 @@ def test_nlinear_quantile_output_shape_ordering_and_batch_safety():
 
     assert pred_batch.shape == (2, 3, 2, 3)
     assert torch.all(pred_batch[..., 1:] >= pred_batch[..., :-1])
-    assert pred_batch[..., -1].max().item() < 0.25
+    last_demand = occ[:, :, -1].unsqueeze(-1)
+    assert torch.allclose(pred_batch[..., 1], last_demand, atol=1e-6)
     assert torch.allclose(pred_batch[:1], pred_single, atol=1e-6)
 
 
