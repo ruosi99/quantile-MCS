@@ -2111,6 +2111,120 @@ class PatchTSTQuantile(nn.Module):
         return quantiles
 
 
+class GraphPatchTSTQuantile(PatchTSTQuantile):
+    """
+    PatchTST temporal encoder with a gated graph residual over station features.
+
+    The temporal backbone keeps the channel-independent PatchTST behavior, while
+    the graph residual lets station representations exchange spatial information
+    after patch encoding. The shared PatchTST module names intentionally match
+    PatchTSTQuantile so this model can warm-start from a trained PatchTST
+    checkpoint and learn only the extra graph path if it helps.
+    """
+    def __init__(
+        self,
+        a_sparse,
+        seq=48,
+        hidden_dim=128,
+        quantiles=None,
+        horizons=None,
+        input_features=2,
+        patch_len=8,
+        patch_stride=4,
+        transformer_layers=3,
+        attention_heads=4,
+        ff_dim=None,
+        dropout=0.1,
+        graph_layers=1,
+        graph_self_loop=True,
+        graph_residual_init=0.05,
+    ):
+        super().__init__(
+            a_sparse=a_sparse,
+            seq=seq,
+            hidden_dim=hidden_dim,
+            quantiles=quantiles,
+            horizons=horizons,
+            input_features=input_features,
+            patch_len=patch_len,
+            patch_stride=patch_stride,
+            transformer_layers=transformer_layers,
+            attention_heads=attention_heads,
+            ff_dim=ff_dim,
+            dropout=dropout,
+        )
+
+        if a_sparse is None:
+            raise ValueError("GraphPatchTSTQuantile requires a_sparse adjacency")
+
+        self.graph_layers = int(graph_layers)
+        self.graph_self_loop = bool(graph_self_loop)
+
+        adj_dense = a_sparse.to_dense().float()
+        adj_dense = torch.nan_to_num(adj_dense, nan=0.0, posinf=0.0, neginf=0.0)
+        adj_dense = torch.clamp(adj_dense, min=0.0)
+        if self.graph_self_loop:
+            adj_dense = adj_dense.clone()
+            adj_dense.fill_diagonal_(1.0)
+        row_sum = adj_dense.sum(dim=1, keepdim=True).clamp_min(1e-6)
+        self.register_buffer("adj_norm", (adj_dense / row_sum).to_sparse().coalesce())
+
+        self.graph_linears = nn.ModuleList([
+            nn.Linear(hidden_dim, hidden_dim) for _ in range(self.graph_layers)
+        ])
+        self.graph_norms = nn.ModuleList([
+            nn.LayerNorm(hidden_dim) for _ in range(self.graph_layers)
+        ])
+        self.graph_dropout = nn.Dropout(dropout)
+        self.graph_gates = nn.Parameter(torch.full((self.graph_layers,), float(graph_residual_init)))
+
+    def _encode_patch_features(self, occ, prc):
+        b, n, s = occ.shape
+        x = torch.stack([occ, prc], dim=-1).reshape(b * n, s, -1)
+
+        if s < self.patch_len:
+            x = F.pad(x, (0, 0, self.patch_len - s, 0))
+
+        patches = x.unfold(dimension=1, size=self.patch_len, step=self.patch_stride)
+        patches = patches.transpose(-1, -2).reshape(b * n, -1, self.patch_len * x.shape[-1])
+        patch_count = patches.shape[1]
+        if patch_count != self.patch_count:
+            raise ValueError(
+                "GraphPatchTSTQuantile received a sequence length that creates "
+                f"{patch_count} patches, but the model was initialized for {self.patch_count} patches"
+            )
+
+        tokens = self.patch_proj(patches) + self.pos_embedding
+        encoded = self.encoder(tokens)
+        return self.flatten_head(encoded).view(b, n, self.hidden_dim)
+
+    def _apply_graph_residual(self, h):
+        b, n, _ = h.shape
+        for idx, (linear, norm) in enumerate(zip(self.graph_linears, self.graph_norms)):
+            msg = h.transpose(0, 1).reshape(n, b * self.hidden_dim)
+            msg = torch.sparse.mm(self.adj_norm.to(dtype=h.dtype, device=h.device), msg)
+            msg = msg.reshape(n, b, self.hidden_dim).transpose(0, 1)
+            msg = self.graph_dropout(F.gelu(linear(norm(msg))))
+            h = h + torch.tanh(self.graph_gates[idx]) * msg
+        return h
+
+    def forward(self, occ, prc):
+        h = self._encode_patch_features(occ, prc)
+        h = self._apply_graph_residual(h)
+
+        horizon_ids = torch.arange(self.H, device=h.device)
+        horizon_h = h.unsqueeze(2) + self.horizon_embedding(horizon_ids).view(1, 1, self.H, -1)
+        raw_q = self.quantile_head(horizon_h)
+
+        base = self.softplus(raw_q[..., 0:1])
+        increments = self.softplus(raw_q[..., 1:])
+        quantiles = torch.cat(
+            [base, base + torch.cumsum(increments, dim=-1)],
+            dim=-1,
+        )
+        return quantiles
+
+
 class MultiScaleTemporalGraphQuantile(nn.Module):
     """
     Multi-scale extension of TemporalGraphQuantile.
