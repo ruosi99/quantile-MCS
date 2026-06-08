@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import utils.model_training.models as models  # noqa: E402
 from scripts.journal.train_multihorizon_raw import (  # noqa: E402
+    build_adjacency,
     build_model,
     evaluate_model,
     load_matching_state_dict,
@@ -80,6 +81,27 @@ def test_quantile_loss_rejects_mismatched_horizon_weights():
 
     with pytest.raises(ValueError, match="horizon weight mismatch"):
         loss_fn(pred, target)
+
+
+def test_build_adjacency_supports_graph_ablation_modes():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    distance = torch.tensor(
+        [
+            [1.0, 0.2, 0.4],
+            [0.2, 1.0, 0.8],
+            [0.4, 0.8, 1.0],
+        ],
+        dtype=torch.float32,
+    )
+
+    distance_adj = build_adjacency(distance, mode="distance", device=device).to_dense().cpu()
+    identity_adj = build_adjacency(distance, mode="identity", device=device).to_dense().cpu()
+    random_adj = build_adjacency(distance, mode="random_permutation", device=device, random_seed=0).to_dense().cpu()
+
+    assert torch.allclose(distance_adj, distance)
+    assert torch.allclose(identity_adj, torch.eye(3))
+    assert sorted(random_adj.flatten().tolist()) == sorted(distance.flatten().tolist())
+    assert not torch.allclose(random_adj, distance)
 
 
 def test_pag_informer_quantile_multi_horizon_output_shape_and_ordering():

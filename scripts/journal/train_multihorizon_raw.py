@@ -69,6 +69,30 @@ def git_value(args: list[str]) -> str:
         return "unknown"
 
 
+def build_adjacency(
+    distance: torch.Tensor,
+    mode: str,
+    device: torch.device,
+    random_seed: int = 2023,
+) -> torch.Tensor:
+    distance = distance.float().detach().cpu()
+    node_count = distance.shape[0]
+
+    if mode == "distance":
+        adj_dense = distance
+    elif mode == "identity":
+        adj_dense = torch.eye(node_count, dtype=distance.dtype)
+    elif mode == "random_permutation":
+        generator = torch.Generator()
+        generator.manual_seed(int(random_seed))
+        perm = torch.randperm(node_count, generator=generator)
+        adj_dense = distance[perm][:, perm]
+    else:
+        raise ValueError(f"Unknown adjacency mode: {mode}")
+
+    return adj_dense.to(device).to_sparse().coalesce()
+
+
 def load_matching_state_dict(
     target_model: torch.nn.Module,
     source_model_or_state: torch.nn.Module | dict[str, torch.Tensor],
@@ -686,6 +710,12 @@ def main() -> None:
     parser.add_argument("--hidden-dim", type=int, default=128)
     parser.add_argument("--temporal-layers", type=int, default=1)
     parser.add_argument("--graph-layers", type=int, default=2)
+    parser.add_argument(
+        "--adjacency-mode",
+        choices=["distance", "identity", "random_permutation"],
+        default="distance",
+    )
+    parser.add_argument("--adjacency-random-seed", type=int, default=2023)
     parser.add_argument("--patch-len", type=int, default=8)
     parser.add_argument("--patch-stride", type=int, default=4)
     parser.add_argument("--moving-avg", type=int, default=7)
@@ -727,7 +757,12 @@ def main() -> None:
     device = torch.device("cuda:0" if args.use_cuda and torch.cuda.is_available() else "cpu")
 
     occ, duration, price_raw, distance, cap = fn.read_dataset_v2(args.data_dir)
-    adj_sparse = distance.to_sparse().to(device)
+    adj_sparse = build_adjacency(
+        distance=distance,
+        mode=args.adjacency_mode,
+        device=device,
+        random_seed=args.adjacency_random_seed,
+    )
     input_series = duration if "dura" in args.model_name else occ
 
     split_rates = {"train": 0.7, "valid": 0.1, "calib": 0.1, "test": 0.1}
@@ -805,6 +840,8 @@ def main() -> None:
         "hidden_dim": args.hidden_dim,
         "temporal_layers": args.temporal_layers,
         "graph_layers": args.graph_layers,
+        "adjacency_mode": args.adjacency_mode,
+        "adjacency_random_seed": args.adjacency_random_seed,
         "patch_len": args.patch_len,
         "patch_stride": args.patch_stride,
         "moving_avg": args.moving_avg,
