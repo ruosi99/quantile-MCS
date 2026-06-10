@@ -18,17 +18,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.append(str(REPO_ROOT))
 
-import utils.model_training.training_utils as fn
 from scripts.journal.calibrate_multihorizon_cqr import (
     build_calib_test_loaders,
     checkpoint_from_metadata,
     conformal_quantile,
-    dataset_path_string,
     load_stage1_metadata,
     predict_loader,
     resolve_path,
 )
 from scripts.journal.train_multihorizon_raw import parse_bool, quantile_index
+from utils.model_training.journal_data import load_journal_dataset_from_metadata
 from utils.model_training.journal_contracts import (
     assert_monotonic_quantiles,
     assert_quantile_tensor_shape,
@@ -443,8 +442,10 @@ def main() -> None:
     data_dir = resolve_path(str(metadata["data_dir"]))
 
     device = torch.device("cuda:0" if args.use_cuda and torch.cuda.is_available() else "cpu")
-    occ, duration, price_raw, distance, cap = fn.read_dataset_v2(dataset_path_string(data_dir))
-    input_series = duration if "dura" in model_name else occ
+    dataset_bundle = load_journal_dataset_from_metadata(metadata, base_dir=REPO_ROOT)
+    input_series = dataset_bundle.target_series
+    price_raw = dataset_bundle.price
+    cap = dataset_bundle.cap
     calib_loader, _, split_lengths = build_calib_test_loaders(
         input_series=input_series,
         price_raw=price_raw,
@@ -544,6 +545,10 @@ def main() -> None:
         "output_dir": str(output_dir),
         "stage1_model_name": model_name,
         "stage2_commit": stage2_metadata.get("commit", "unknown"),
+        "data_dir": str(data_dir),
+        "dataset_family": dataset_bundle.metadata.get("dataset_family", "urbanev_station"),
+        "target_feature": dataset_bundle.target_feature,
+        "dataset_metadata": dataset_bundle.metadata,
         "calibration_mode": "direct_one_sided_conformal",
         "score_definition": "label_minus_raw_target_quantile",
         "decision_quantity": "max(raw_target_quantile + s_hat, 0) for calibrated methods",

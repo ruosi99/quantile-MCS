@@ -22,6 +22,11 @@ if str(REPO_ROOT) not in sys.path:
 import utils.model_training.models as models
 import utils.model_training.training_utils as fn
 from utils.model_training.conformal import interval_metrics
+from utils.model_training.journal_data import (
+    SUPPORTED_DATASET_FAMILIES,
+    SUPPORTED_TARGET_FEATURES,
+    load_journal_dataset,
+)
 from utils.model_training.journal_contracts import (
     DEFAULT_JOURNAL_HORIZONS,
     DEFAULT_JOURNAL_QUANTILES,
@@ -64,7 +69,12 @@ def quantile_index(quantiles: list[float], value: float) -> int:
 
 def git_value(args: list[str]) -> str:
     try:
-        return subprocess.check_output(["git", *args], text=True).strip()
+        return subprocess.check_output(
+            ["git", "-c", f"safe.directory={REPO_ROOT.as_posix()}", *args],
+            cwd=REPO_ROOT,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
     except Exception:
         return "unknown"
 
@@ -680,6 +690,10 @@ def evaluate_model(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train/evaluate the journal Stage 1 raw multi-horizon baseline.")
     parser.add_argument("--data-dir", default="data/datasets/ST_EVCDP_v2_canonical/")
+    parser.add_argument("--dataset-family", choices=SUPPORTED_DATASET_FAMILIES, default="urbanev_station")
+    parser.add_argument("--target-feature", choices=SUPPORTED_TARGET_FEATURES, default="duration")
+    parser.add_argument("--charged-adjacency-k", type=int, default=8)
+    parser.add_argument("--charged-adjacency-sigma", type=float, default=0.0)
     parser.add_argument("--output-dir", default="journal_results/shenzhen_multihorizon/raw")
     parser.add_argument("--model-name", default="journal_dura_pag_informer_quantile_multihorizon_raw")
     parser.add_argument("--load-method", default="")
@@ -756,14 +770,23 @@ def main() -> None:
     fn.set_seed(seed=2023, flag=True)
     device = torch.device("cuda:0" if args.use_cuda and torch.cuda.is_available() else "cpu")
 
-    occ, duration, price_raw, distance, cap = fn.read_dataset_v2(args.data_dir)
+    dataset_bundle = load_journal_dataset(
+        data_dir=args.data_dir,
+        dataset_family=args.dataset_family,
+        target_feature=args.target_feature,
+        charged_adjacency_k=args.charged_adjacency_k,
+        charged_adjacency_sigma=args.charged_adjacency_sigma or None,
+        base_dir=REPO_ROOT,
+    )
     adj_sparse = build_adjacency(
-        distance=distance,
+        distance=dataset_bundle.adjacency,
         mode=args.adjacency_mode,
         device=device,
         random_seed=args.adjacency_random_seed,
     )
-    input_series = duration if "dura" in args.model_name else occ
+    input_series = dataset_bundle.target_series
+    price_raw = dataset_bundle.price
+    cap = dataset_bundle.cap
 
     split_rates = {"train": 0.7, "valid": 0.1, "calib": 0.1, "test": 0.1}
     train_loader, valid_loader, test_loader, split_lengths = build_dataloaders(
@@ -831,6 +854,11 @@ def main() -> None:
         "branch": git_value(["branch", "--show-current"]),
         "commit": git_value(["rev-parse", "--short", "HEAD"]),
         "data_dir": args.data_dir,
+        "dataset_family": args.dataset_family,
+        "target_feature": dataset_bundle.target_feature,
+        "charged_adjacency_k": args.charged_adjacency_k,
+        "charged_adjacency_sigma": args.charged_adjacency_sigma or None,
+        "dataset_metadata": dataset_bundle.metadata,
         "output_dir": str(output_dir),
         "model_name": args.model_name,
         "architecture": args.architecture,

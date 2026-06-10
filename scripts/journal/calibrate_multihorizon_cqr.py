@@ -20,6 +20,7 @@ if str(REPO_ROOT) not in sys.path:
 import utils.model_training.training_utils as fn
 from scripts.journal.train_multihorizon_raw import parse_bool, parse_float_list, quantile_index
 from utils.model_training.conformal import interval_metrics
+from utils.model_training.journal_data import load_journal_dataset_from_metadata
 from utils.model_training.journal_contracts import (
     assert_monotonic_quantiles,
     assert_quantile_tensor_shape,
@@ -448,8 +449,10 @@ def main() -> None:
     data_dir = resolve_path(str(metadata["data_dir"]))
 
     device = torch.device("cuda:0" if args.use_cuda and torch.cuda.is_available() else "cpu")
-    occ, duration, price_raw, distance, cap = fn.read_dataset_v2(dataset_path_string(data_dir))
-    input_series = duration if "dura" in model_name else occ
+    dataset_bundle = load_journal_dataset_from_metadata(metadata, base_dir=REPO_ROOT)
+    input_series = dataset_bundle.target_series
+    price_raw = dataset_bundle.price
+    cap = dataset_bundle.cap
 
     calib_loader, test_loader, split_lengths = build_calib_test_loaders(
         input_series=input_series,
@@ -521,6 +524,9 @@ def main() -> None:
         "stage1_model_name": model_name,
         "output_dir": str(output_dir),
         "data_dir": str(data_dir),
+        "dataset_family": dataset_bundle.metadata.get("dataset_family", "urbanev_station"),
+        "target_feature": dataset_bundle.target_feature,
+        "dataset_metadata": dataset_bundle.metadata,
         "seq_len": seq_len,
         "horizons": horizons,
         "quantiles": quantiles,
