@@ -454,6 +454,31 @@ def build_model(
             f"graph_layers={args.graph_layers}"
             ").to(device)"
         )
+    elif args.architecture == "horizon_gated_repatchtst_quantile":
+        model = models.HorizonGatedGraphPatchTSTQuantile(
+            a_sparse=adj_sparse,
+            seq=args.seq_len,
+            hidden_dim=args.hidden_dim,
+            quantiles=quantiles,
+            horizons=horizons,
+            patch_len=args.patch_len,
+            patch_stride=args.patch_stride,
+            transformer_layers=args.transformer_layers,
+            attention_heads=args.attention_heads,
+            ff_dim=args.ff_dim or None,
+            dropout=args.dropout,
+            graph_layers=args.graph_layers,
+        ).to(device)
+        load_method = (
+            "models.HorizonGatedGraphPatchTSTQuantile("
+            f"a_sparse=adj_sparse, seq={args.seq_len}, hidden_dim={args.hidden_dim}, "
+            "quantiles=quantiles, horizons=horizons, "
+            f"patch_len={args.patch_len}, patch_stride={args.patch_stride}, "
+            f"transformer_layers={args.transformer_layers}, attention_heads={args.attention_heads}, "
+            f"ff_dim={args.ff_dim or None}, dropout={args.dropout}, "
+            f"graph_layers={args.graph_layers}"
+            ").to(device)"
+        )
     elif args.architecture == "nlinear_quantile":
         model = models.NLinearQuantile(
             a_sparse=adj_sparse,
@@ -706,6 +731,7 @@ def main() -> None:
             "tft_quantile",
             "patchtst_quantile",
             "graph_patchtst_quantile",
+            "horizon_gated_repatchtst_quantile",
             "nlinear_quantile",
             "dlinear_quantile",
             "multi_scale_temporal_graph_quantile",

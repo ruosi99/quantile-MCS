@@ -2225,6 +2225,93 @@ class GraphPatchTSTQuantile(PatchTSTQuantile):
         return quantiles
 
 
+class HorizonGatedGraphPatchTSTQuantile(GraphPatchTSTQuantile):
+    """
+    Horizon-conditioned residual adapter on top of PatchTST.
+
+    The PatchTST backbone is shared with PatchTSTQuantile and
+    GraphPatchTSTQuantile for warm-start compatibility. Unlike
+    GraphPatchTSTQuantile, the residual refinement is applied after adding
+    horizon embeddings, so each forecast horizon can learn a different
+    correction strength over station representations.
+    """
+    def __init__(
+        self,
+        a_sparse,
+        seq=48,
+        hidden_dim=128,
+        quantiles=None,
+        horizons=None,
+        input_features=2,
+        patch_len=8,
+        patch_stride=4,
+        transformer_layers=3,
+        attention_heads=4,
+        ff_dim=None,
+        dropout=0.1,
+        graph_layers=1,
+        graph_self_loop=True,
+        graph_residual_init=0.05,
+    ):
+        super().__init__(
+            a_sparse=a_sparse,
+            seq=seq,
+            hidden_dim=hidden_dim,
+            quantiles=quantiles,
+            horizons=horizons,
+            input_features=input_features,
+            patch_len=patch_len,
+            patch_stride=patch_stride,
+            transformer_layers=transformer_layers,
+            attention_heads=attention_heads,
+            ff_dim=ff_dim,
+            dropout=dropout,
+            graph_layers=graph_layers,
+            graph_self_loop=graph_self_loop,
+            graph_residual_init=graph_residual_init,
+        )
+
+        self.horizon_gate_norms = nn.ModuleList([
+            nn.LayerNorm(hidden_dim) for _ in range(self.graph_layers)
+        ])
+        self.horizon_gate_linears = nn.ModuleList([
+            nn.Linear(hidden_dim, hidden_dim) for _ in range(self.graph_layers)
+        ])
+
+    def _apply_horizon_graph_residual(self, horizon_h):
+        b, n, h_count, _ = horizon_h.shape
+        for idx, (linear, norm, gate_linear, gate_norm) in enumerate(zip(
+            self.graph_linears,
+            self.graph_norms,
+            self.horizon_gate_linears,
+            self.horizon_gate_norms,
+        )):
+            msg = horizon_h.permute(1, 0, 2, 3).reshape(n, b * h_count * self.hidden_dim)
+            msg = torch.sparse.mm(self.adj_norm.to(dtype=horizon_h.dtype, device=horizon_h.device), msg)
+            msg = msg.reshape(n, b, h_count, self.hidden_dim).permute(1, 0, 2, 3)
+            msg = self.graph_dropout(F.gelu(linear(norm(msg))))
+
+            gate = torch.sigmoid(gate_linear(gate_norm(horizon_h)))
+            horizon_h = horizon_h + torch.tanh(self.graph_gates[idx]) * gate * msg
+        return horizon_h
+
+    def forward(self, occ, prc):
+        h = self._encode_patch_features(occ, prc)
+
+        horizon_ids = torch.arange(self.H, device=h.device)
+        horizon_h = h.unsqueeze(2) + self.horizon_embedding(horizon_ids).view(1, 1, self.H, -1)
+        horizon_h = self._apply_horizon_graph_residual(horizon_h)
+        raw_q = self.quantile_head(horizon_h)
+
+        base = self.softplus(raw_q[..., 0:1])
+        increments = self.softplus(raw_q[..., 1:])
+        quantiles = torch.cat(
+            [base, base + torch.cumsum(increments, dim=-1)],
+            dim=-1,
+        )
+        return quantiles
+
+
 class MultiScaleTemporalGraphQuantile(nn.Module):
     """
     Multi-scale extension of TemporalGraphQuantile.

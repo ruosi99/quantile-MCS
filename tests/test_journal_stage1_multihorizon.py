@@ -562,6 +562,79 @@ def test_stage1_build_model_can_select_graph_patchtst_quantile():
     assert "GraphPatchTSTQuantile" in load_method
 
 
+def test_horizon_gated_repatchtst_quantile_output_shape_ordering_and_batch_safety():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    adjacency = torch.tensor(
+        [
+            [1.0, 0.4, 0.0],
+            [0.4, 1.0, 0.2],
+            [0.0, 0.2, 1.0],
+        ],
+        dtype=torch.float32,
+        device=device,
+    ).to_sparse()
+    model = models.HorizonGatedGraphPatchTSTQuantile(
+        a_sparse=adjacency,
+        seq=8,
+        hidden_dim=8,
+        quantiles=[0.1, 0.5, 0.9],
+        horizons=[1, 3],
+        patch_len=4,
+        patch_stride=2,
+        transformer_layers=1,
+        attention_heads=2,
+        graph_layers=1,
+        dropout=0.0,
+    ).to(device)
+    model.eval()
+
+    occ = torch.rand(2, 3, 8, device=device)
+    prc = torch.rand(2, 3, 8, device=device)
+    with torch.no_grad():
+        pred_batch = model(occ, prc)
+        pred_single = model(occ[:1], prc[:1])
+
+    assert pred_batch.shape == (2, 3, 2, 3)
+    assert torch.all(pred_batch[..., 1:] >= pred_batch[..., :-1])
+    assert pred_batch[..., -1].max().item() < 0.25
+    assert torch.allclose(pred_batch[:1], pred_single, atol=1e-6)
+
+
+def test_stage1_build_model_can_select_horizon_gated_repatchtst_quantile():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    adjacency = torch.eye(3, dtype=torch.float32, device=device).to_sparse()
+    args = SimpleNamespace(
+        architecture="horizon_gated_repatchtst_quantile",
+        attention_heads=2,
+        dropout=0.0,
+        ff_dim=0,
+        freeze_gat_heads=False,
+        graph_layers=1,
+        hidden_dim=16,
+        load_method="",
+        patch_len=4,
+        patch_stride=2,
+        seq_len=8,
+        short_seq=3,
+        temporal_layers=1,
+        transformer_batch_first=True,
+        transformer_layers=1,
+    )
+
+    model, load_method = build_model(
+        args=args,
+        adj_sparse=adjacency,
+        quantiles=[0.1, 0.5, 0.9],
+        horizons=[1, 3],
+        device=device,
+    )
+
+    assert isinstance(model, models.HorizonGatedGraphPatchTSTQuantile)
+    assert model.graph_layers == 1
+    assert model.patch_len == 4
+    assert "HorizonGatedGraphPatchTSTQuantile" in load_method
+
+
 def test_multi_scale_temporal_graph_quantile_output_shape_ordering_and_batch_safety():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     adjacency = torch.tensor(
