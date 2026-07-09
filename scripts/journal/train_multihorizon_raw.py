@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import random
 import subprocess
 import sys
 from datetime import datetime
@@ -77,6 +78,14 @@ def git_value(args: list[str]) -> str:
         ).strip()
     except Exception:
         return "unknown"
+
+
+def set_global_seed(seed: int) -> None:
+    fn.set_seed(seed=seed, flag=True)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def build_adjacency(
@@ -739,6 +748,7 @@ def main() -> None:
         default="pag_informer",
     )
     parser.add_argument("--warm-start-checkpoint", default="")
+    parser.add_argument("--seed", type=int, default=2023)
     parser.add_argument("--use-cuda", type=parse_bool, default=True)
     parser.add_argument("--train", type=parse_bool, default=True)
     parser.add_argument("--epochs", type=int, default=200)
@@ -793,7 +803,7 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     checkpoint_path = output_dir / f"{args.model_name}_checkpoint.pt"
 
-    fn.set_seed(seed=2023, flag=True)
+    set_global_seed(args.seed)
     device = torch.device("cuda:0" if args.use_cuda and torch.cuda.is_available() else "cpu")
 
     dataset_bundle = load_journal_dataset(
@@ -888,6 +898,7 @@ def main() -> None:
         "output_dir": str(output_dir),
         "model_name": args.model_name,
         "architecture": args.architecture,
+        "seed": int(args.seed),
         "load_method": load_method,
         "seq_len": args.seq_len,
         "short_seq": args.short_seq,
