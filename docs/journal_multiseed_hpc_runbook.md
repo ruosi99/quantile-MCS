@@ -65,7 +65,9 @@ Array mapping:
 30-34  multi_scale_temporal_graph_quantile
 ```
 
-After PatchTST seed checkpoints finish, run GraphPatchTST:
+GraphPatchTST is not part of the current paper comparison table. Do not submit
+tasks `35-39` unless a later ablation explicitly requires it. The optional
+command is retained here only for reproducibility:
 
 ```bash
 sbatch --array=35-39%2 jobs/train_multiseed_baselines.slurm
@@ -76,6 +78,48 @@ GraphPatchTST uses the matching PatchTST seed checkpoint from:
 ```text
 journal_results/shenzhen_multihorizon/multiseed/patchtst_quantile_hidden256_seq48_p8s4_lr2e4_epoch500/seed_<seed>/
 ```
+
+## Recover PatchTST And HG-Re-PatchTST After Timeout
+
+The original jobs use a 24-hour task limit. PatchTST and HG-Re-PatchTST are the
+two heaviest groups and may time out before evaluation writes metric CSVs.
+
+First, evaluate the best checkpoints saved before timeout. These provisional
+outputs are isolated from final paper runs:
+
+```bash
+sbatch jobs/evaluate_remaining_multiseed_checkpoints.slurm
+```
+
+They are written under:
+
+```text
+journal_results/shenzhen_multihorizon/multiseed_checkpoint_snapshot/
+```
+
+Summarize the provisional checkpoint results separately:
+
+```bash
+python scripts/journal/summarize_multiseed_forecasting.py \
+  --root journal_results/shenzhen_multihorizon/multiseed_checkpoint_snapshot \
+  --output-dir journal_results/shenzhen_multihorizon/multiseed_checkpoint_snapshot_summary
+```
+
+After inspecting those results, restart only PatchTST and HG-Re-PatchTST with a
+48-hour task limit:
+
+```bash
+sbatch jobs/train_remaining_paper_models_multiseed.slurm
+```
+
+Array mapping:
+
+```text
+0-4  PatchTST, seeds 2023-2027
+5-9  HG-Re-PatchTST (Ours), seeds 2023-2027
+```
+
+The retraining job skips any seed that already has a complete final metric set.
 
 If your HPC paths differ, override the repo and Python executable:
 

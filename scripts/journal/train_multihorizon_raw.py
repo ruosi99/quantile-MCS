@@ -730,6 +730,11 @@ def main() -> None:
     parser.add_argument("--charged-adjacency-sigma", type=float, default=0.0)
     parser.add_argument("--output-dir", default="journal_results/shenzhen_multihorizon/raw")
     parser.add_argument("--model-name", default="journal_dura_pag_informer_quantile_multihorizon_raw")
+    parser.add_argument(
+        "--checkpoint-path",
+        default="",
+        help="Optional checkpoint to save/load instead of <output-dir>/<model-name>_checkpoint.pt.",
+    )
     parser.add_argument("--load-method", default="")
     parser.add_argument(
         "--architecture",
@@ -801,7 +806,11 @@ def main() -> None:
     save_quantile_arrays = parse_optional_bool(args.save_quantile_arrays)
     save_point_arrays = parse_optional_bool(args.save_point_arrays)
     output_dir = Path(args.output_dir)
-    checkpoint_path = output_dir / f"{args.model_name}_checkpoint.pt"
+    checkpoint_path = (
+        Path(args.checkpoint_path)
+        if args.checkpoint_path
+        else output_dir / f"{args.model_name}_checkpoint.pt"
+    )
 
     set_global_seed(args.seed)
     device = torch.device("cuda:0" if args.use_cuda and torch.cuda.is_available() else "cpu")
@@ -897,6 +906,7 @@ def main() -> None:
         "dataset_metadata": dataset_bundle.metadata,
         "output_dir": str(output_dir),
         "model_name": args.model_name,
+        "checkpoint_path": str(checkpoint_path),
         "architecture": args.architecture,
         "seed": int(args.seed),
         "load_method": load_method,
