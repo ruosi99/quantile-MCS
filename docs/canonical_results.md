@@ -36,5 +36,7 @@ This is the current paper result folder that should be reused for tables, figure
 ## WIS Note
 
 - The original saved `WIS` values for `delta = 0.2` and `delta = 0.4` were produced with the wrong default `delta=0.1` inside interval evaluation.
-- This has now been fixed in `train.py` so future reruns use the correct `delta` for each interval setting.
-- Corrected `WIS` values should be taken from the refreshed canonical interval CSV files after recomputation.
+- A later audit also found that the lower and upper pinball-loss weights were reversed and that the single-interval WIS normalization was missing in `interval_metrics()`.
+- The implementation now uses the normalized WIS for one central interval plus the predictive median.
+- Previously saved WIS values at every delta must therefore be treated as stale and recomputed from predictions or checkpoints.
+- Saved `PICP` and `MPIW` values are unaffected by the WIS correction and remain usable when they come from the intended checkpoint and data split.

@@ -334,11 +334,18 @@ def checkpoint_from_metadata(stage1_output_dir: Path, metadata: dict[str, object
     if expected.exists():
         return expected
 
+    metadata_checkpoint = str(metadata.get("checkpoint_path", "")).strip()
+    if metadata_checkpoint:
+        candidate = resolve_path(metadata_checkpoint)
+        if candidate.exists():
+            return candidate
+
     matches = sorted(stage1_output_dir.glob("*_checkpoint.pt"))
     if len(matches) == 1:
         return matches[0]
     raise FileNotFoundError(
-        f"Could not identify Stage 1 checkpoint in {stage1_output_dir}; expected {expected}"
+        f"Could not identify Stage 1 checkpoint in {stage1_output_dir}; expected {expected} "
+        f"or metadata checkpoint {metadata_checkpoint!r}"
     )
 
 
