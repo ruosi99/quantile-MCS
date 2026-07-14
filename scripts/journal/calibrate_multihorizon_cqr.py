@@ -397,10 +397,15 @@ def predict_loader(
     horizons: list[int],
     max_batches: int,
     context: str,
+    log_every_batches: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     model.eval()
     predict_list = []
     label_list = []
+    total_batches = len(loader)
+    if max_batches > 0:
+        total_batches = min(total_batches, max_batches)
+    print(f"{context}: starting {total_batches} batches on {device}", flush=True)
     with torch.no_grad():
         for batch_idx, (demand, price, label) in enumerate(loader):
             if max_batches > 0 and batch_idx >= max_batches:
@@ -418,6 +423,9 @@ def predict_loader(
             assert_target_tensor_shape(label, n_horizons=len(horizons), context=f"{context} labels")
             predict_list.append(pred_q.detach().cpu().numpy())
             label_list.append(label.detach().cpu().numpy())
+            completed = batch_idx + 1
+            if completed == total_batches or completed % log_every_batches == 0:
+                print(f"{context}: completed {completed}/{total_batches} batches", flush=True)
 
     if not predict_list:
         raise RuntimeError(f"No batches were evaluated for {context}.")
@@ -439,6 +447,7 @@ def main() -> None:
     parser.add_argument("--deltas", default=",".join(str(delta) for delta in DEFAULT_DELTAS))
     parser.add_argument("--max-calib-batches", type=int, default=0)
     parser.add_argument("--max-test-batches", type=int, default=0)
+    parser.add_argument("--log-every-batches", type=int, default=25)
     args = parser.parse_args()
 
     stage1_output_dir = resolve_path(args.stage1_output_dir)
@@ -456,6 +465,11 @@ def main() -> None:
     data_dir = resolve_path(str(metadata["data_dir"]))
 
     device = torch.device("cuda:0" if args.use_cuda and torch.cuda.is_available() else "cpu")
+    if args.use_cuda and device.type != "cuda":
+        print("WARNING: CUDA was requested but is unavailable; falling back to CPU.", flush=True)
+    print(f"Stage 2 device: {device}", flush=True)
+    print(f"Stage 1 checkpoint: {checkpoint_path}", flush=True)
+    print(f"Stage 2 output: {output_dir}", flush=True)
     dataset_bundle = load_journal_dataset_from_metadata(metadata, base_dir=REPO_ROOT)
     input_series = dataset_bundle.target_series
     price_raw = dataset_bundle.price
@@ -482,6 +496,7 @@ def main() -> None:
         horizons=horizons,
         max_batches=args.max_calib_batches,
         context="stage2 calibration",
+        log_every_batches=max(1, args.log_every_batches),
     )
     test_quantiles, test_labels = predict_loader(
         model=model,
@@ -492,6 +507,7 @@ def main() -> None:
         horizons=horizons,
         max_batches=args.max_test_batches,
         context="stage2 test",
+        log_every_batches=max(1, args.log_every_batches),
     )
 
     global_thresholds: dict[float, float] = {}
