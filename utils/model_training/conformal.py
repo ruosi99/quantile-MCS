@@ -167,12 +167,14 @@ def interval_metrics(y_true, L, U, point_pred=None, delta=0.1):
     metrics = {"PICP": float(picp), "MPIW": float(mpiw)}
 
     if point_pred is not None:
+        if not 0.0 < delta < 1.0:
+            raise ValueError(f"delta must be in (0, 1), got {delta}")
         alpha = delta / 2.0
         
         # 计算分位数损失
         # Lower Quantile Loss: rho_alpha(y, L)
         diff_L = L - y_true
-        loss_L = np.maximum(alpha * diff_L, (alpha - 1) * diff_L)
+        loss_L = np.maximum((1 - alpha) * diff_L, -alpha * diff_L)
         
         # Upper Quantile Loss: rho_{1-alpha}(y, U)
         # 这里的 alpha 对应下界分位数，上界分位数为 1-alpha
@@ -181,18 +183,16 @@ def interval_metrics(y_true, L, U, point_pred=None, delta=0.1):
         # 如果 y < U: loss = (y-U)*(-alpha) = alpha*(U-y)
         # 如果 y >= U: loss = (y-U)*(1-alpha)
         diff_U = U - y_true
-        loss_U = np.maximum((1 - alpha) * diff_U, -alpha * diff_U)
+        loss_U = np.maximum(alpha * diff_U, -(1 - alpha) * diff_U)
         
         # Median Quantile Loss (MAE scaled): rho_0.5(y, point)
         # 这就是 0.5 * |y - point|
         diff_M = point_pred - y_true
         loss_M = np.maximum(0.5 * diff_M, -0.5 * diff_M)
         
-        # WIS 定义: 
-        # WIS = (1/K) * sum(Quantile Losses) 
-        # 这里 K = 3 (lower, median, upper)
-        # 注意：有些文献定义 WIS = sum(loss) / K，这里采用平均分位数损失作为综合指标
-        wis = (loss_L + loss_U + loss_M).mean()
+        # Normalized WIS for one central interval plus the predictive median
+        # is the sum of these three pinball losses divided by K + 0.5 = 1.5.
+        wis = (loss_L + loss_U + loss_M).mean() / 1.5
         
         metrics["WIS"] = float(wis)
     
